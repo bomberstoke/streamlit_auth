@@ -17,7 +17,7 @@ def login_page(cookies):
             role = verify_user(username, password)
             if role:
                 create_session(username, cookies)
-                st.success("Login successful!")
+                st.toast("Login successful!", icon="✅")
                 st.rerun()
             else:
-                st.error("Invalid credentials")
+                st.toast("Invalid credentials", icon="❌")

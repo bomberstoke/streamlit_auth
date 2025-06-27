@@ -5,16 +5,6 @@ import streamlit as st
 from auth import register_user
 
 
-# Helper to fetch roles from the database
-def get_roles():
-    conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
-    c = conn.cursor()
-    c.execute("SELECT role FROM roles")
-    roles = [row[0] for row in c.fetchall()]
-    conn.close()
-    return roles
-
-
 # Helper to assign a role to a user in user_roles table
 def assign_role(username, role):
     conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
@@ -40,9 +30,9 @@ def register_page():
         # Form validation and registration logic
         if submit:
             if password != confirm_password:
-                st.error("Passwords do not match")
+                st.toast("Passwords do not match", icon="⚠️")
             elif register_user(username, password, "user"):
                 assign_role(username, "user")
-                st.success("Registration successful!")
+                st.toast("Registration successful!", icon="✅")
             else:
-                st.error("Username already exists")
+                st.toast("Username already exists", icon="❌")
