@@ -185,7 +185,7 @@ def admin_panel_page(cookies):
                 with header2:
                     st.markdown("**Roles**")
                 with header4:
-                    st.markdown("**New Password**")
+                    st.markdown("**Reset Password**")
 
                 all_roles = []
                 # Fetch all roles from the database
@@ -299,7 +299,7 @@ def admin_panel_page(cookies):
                             from dateutil import parser
 
                             expiry_dt = parser.parse(expiry_str)
-                            expiry_display = expiry_dt.strftime("%Y-%m-%d %H:%M:%S")
+                            expiry_display = expiry_dt.strftime("%d-%m-%Y %H:%M:%S")
                         except Exception:
                             expiry_display = expiry_str
                         st.write(expiry_display)
