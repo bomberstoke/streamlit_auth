@@ -1,31 +1,73 @@
-import streamlit as st
+import os
 import sqlite3
 import time
+
 import bcrypt
+import streamlit as st
+
 from auth import verify_session
-import os
+
 
 # Dialog function for editing a page
 @st.dialog("Edit Page")
 def edit_page_dialog(current_name, current_role, current_icon, current_enabled):
-    icon_options = ["📄", "🏠", "👤", "🔐", "⚙️", "📊", "📅", "📝", "📦", "💡", "⭐", "🔔", "📁", "🛒", "🗂️", "🧑‍💼"]
+    icon_options = [
+        "📄",
+        "🏠",
+        "👤",
+        "🔐",
+        "⚙️",
+        "📊",
+        "📅",
+        "📝",
+        "📦",
+        "💡",
+        "⭐",
+        "🔔",
+        "📁",
+        "🛒",
+        "🗂️",
+        "🧑‍💼",
+    ]
     all_roles = get_roles()
     with st.form("edit_page_form"):
         new_name = st.text_input("Page Name", value=current_name, key="edit_page_name")
-        new_icon = st.selectbox("Icon (emoji)", icon_options, index=icon_options.index(current_icon) if current_icon in icon_options else 0, key="edit_page_icon")
+        new_icon = st.selectbox(
+            "Icon (emoji)",
+            icon_options,
+            index=(
+                icon_options.index(current_icon) if current_icon in icon_options else 0
+            ),
+            key="edit_page_icon",
+        )
         if all_roles:
-            new_required_role = st.selectbox("Required Role", all_roles, index=all_roles.index(current_role) if current_role in all_roles else 0, key="edit_page_role")
+            new_required_role = st.selectbox(
+                "Required Role",
+                all_roles,
+                index=all_roles.index(current_role) if current_role in all_roles else 0,
+                key="edit_page_role",
+            )
         else:
-            st.warning("No roles available. Please add a role first in the Manage Roles tab.")
+            st.toast("No roles available. Please add a role first in the Manage Roles tab.", icon="⚠️")
             new_required_role = None
-        new_enabled = st.checkbox("Enabled", value=bool(current_enabled), key="edit_page_enabled")
-        submit_edit = st.form_submit_button("Save Changes", disabled=not all_roles)
-        cancel_edit = st.form_submit_button("Cancel")
+        new_enabled = st.checkbox(
+            "Enabled", value=bool(current_enabled), key="edit_page_enabled"
+        )
+        col_save, col_spacer, col_cancel = st.columns([1, 3, 1])
+        with col_save:
+            submit_edit = st.form_submit_button("Save", disabled=not all_roles)
+        with col_spacer:
+            st.write("")
+        with col_cancel:
+            cancel_edit = st.form_submit_button("Cancel")
         if submit_edit:
             # Update the page in the DB
-            conn = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES)
+            conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
             c = conn.cursor()
-            c.execute('UPDATE pages SET page_name = ?, required_role = ?, icon = ?, enabled = ? WHERE page_name = ?', (new_name, new_required_role, new_icon, int(new_enabled), current_name))
+            c.execute(
+                "UPDATE pages SET page_name = ?, required_role = ?, icon = ?, enabled = ? WHERE page_name = ?",
+                (new_name, new_required_role, new_icon, int(new_enabled), current_name),
+            )
             conn.commit()
             conn.close()
             # If the name changed, also rename the file
@@ -34,13 +76,25 @@ def edit_page_dialog(current_name, current_role, current_icon, current_enabled):
                 new_file = f"pages/{str(new_name).lower().replace(' ', '_')}.py"
                 if os.path.exists(old_file):
                     os.rename(old_file, new_file)
+                    # Also rename the function inside the file
+                    with open(new_file, "r") as f:
+                        content = f.read()
+                    old_func = f"def {str(current_name).lower().replace(' ', '_')}_page(cookies):"
+                    new_func = f"def {str(new_name).lower().replace(' ', '_')}_page(cookies):"
+                    if old_func in content:
+                        content = content.replace(old_func, new_func, 1)
+                        with open(new_file, "w") as f:
+                            f.write(content)
                 # Update file_path in DB
-                conn = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES)
+                conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
                 c = conn.cursor()
-                c.execute('UPDATE pages SET file_path = ? WHERE page_name = ?', (new_file, new_name))
+                c.execute(
+                    "UPDATE pages SET file_path = ? WHERE page_name = ?",
+                    (new_file, new_name),
+                )
                 conn.commit()
                 conn.close()
-            st.success(f"Page '{new_name}' updated.")
+            st.toast(f"Page '{new_name}' updated.", icon="✅")
             del st.session_state["edit_page"]
             if "edit_page_active" in st.session_state:
                 del st.session_state["edit_page_active"]
@@ -51,61 +105,80 @@ def edit_page_dialog(current_name, current_role, current_icon, current_enabled):
                 del st.session_state["edit_page_active"]
             st.rerun()
 
+
 # Dialog function for confirming page deletion
 @st.dialog("Confirm Delete Page")
 def confirm_delete_page_dialog(page_name):
-    st.warning(f"Are you sure you want to delete the page '{page_name}'? This action cannot be undone.")
-    col_a, col_b = st.columns(2)
+    st.warning(
+        f"Are you sure you want to delete the page '{page_name}'? This action cannot be undone."
+    )
+    col_a, col_b, col_c = st.columns([1, 3, 1])
     with col_a:
-        if st.button("Yes, delete", key="confirm_delete_yes"):
+        if st.button("Delete", key="confirm_delete_yes"):
             # Remove from DB and delete file
-            conn = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES)
+            conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
             c = conn.cursor()
-            c.execute('SELECT file_path FROM pages WHERE page_name = ?', (page_name,))
+            c.execute("SELECT file_path FROM pages WHERE page_name = ?", (page_name,))
             row = c.fetchone()
-            c.execute('DELETE FROM pages WHERE page_name = ?', (page_name,))
+            c.execute("DELETE FROM pages WHERE page_name = ?", (page_name,))
             conn.commit()
             conn.close()
             if row and row[0] and os.path.exists(row[0]):
                 os.remove(row[0])
-            st.success(f"Page '{page_name}' deleted.")
+            st.toast(f"Page '{page_name}' deleted.", icon="✅")
             del st.session_state["confirm_delete_page"]
             time.sleep(2)
             st.rerun()
     with col_b:
+        st.write("")
+    with col_c:
         if st.button("Cancel", key="confirm_delete_cancel"):
             del st.session_state["confirm_delete_page"]
             if "edit_page" in st.session_state:
                 del st.session_state["edit_page"]
             st.rerun()
 
+
 # Admin panel page for managing users and sessions
 def admin_panel_page(cookies):
+    # Clear dialog state if the dialog was closed with the X
+    if "edit_page" in st.session_state and not st.session_state.get("edit_page_active"):
+        del st.session_state["edit_page"]
+    if "confirm_delete_page" in st.session_state and not st.session_state.get("confirm_delete_page_active"):
+        del st.session_state["confirm_delete_page"]
     username, roles = verify_session(cookies)
     if username:
-        if 'admin' in roles:
+        if "admin" in roles:
             st.title("Admin Panel")
             st.write(f"Welcome to the Admin Panel, {username}!")
             st.write("This page is only accessible to users with the 'admin' role.")
 
             # Fetch all users from the database
-            conn = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES)
+            conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
             c = conn.cursor()
             c.execute("SELECT username FROM users")
             users = [(row[0],) for row in c.fetchall()]
             conn.close()
 
             # Create tabs for each admin section
-            tabs = st.tabs(["Users", "User Sessions", "Manage Roles", "New Page", "View Pages"])
+            tabs = st.tabs(
+                ["Users", "User Sessions", "Manage Roles", "New Page", "View Pages"]
+            )
 
             # Users tab
             with tabs[0]:
                 st.subheader("Users")
                 # Search functionality for users (moved into this tab)
-                search_query = st.text_input("Search users by username", "", key="user_search")
+                search_query = st.text_input(
+                    "Search users by username", "", key="user_search"
+                )
                 filtered_users = users
                 if search_query:
-                    filtered_users = [user for user in users if search_query.lower() in user[0].lower()]
+                    filtered_users = [
+                        user
+                        for user in users
+                        if search_query.lower() in user[0].lower()
+                    ]
                 header1, header2, header4 = st.columns([1, 3, 2])
                 with header1:
                     st.markdown("**Username**")
@@ -116,9 +189,9 @@ def admin_panel_page(cookies):
 
                 all_roles = []
                 # Fetch all roles from the database
-                conn = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES)
+                conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
                 c = conn.cursor()
-                c.execute('SELECT role FROM roles')
+                c.execute("SELECT role FROM roles")
                 all_roles = [row[0] for row in c.fetchall()]
                 conn.close()
                 for user in filtered_users:
@@ -136,11 +209,11 @@ def admin_panel_page(cookies):
                                 all_roles,
                                 default=user_roles,
                                 key=f"roles_{username}",
-                                label_visibility="collapsed"
+                                label_visibility="collapsed",
                             )
                             if set(new_roles) != set(user_roles):
                                 update_user_roles(username, new_roles)
-                                st.toast(f"Roles for {username} updated.")
+                                st.toast(f"Roles for {username} updated.", icon="✅")
                                 time.sleep(2)
                                 st.rerun()
                     with col4:
@@ -158,17 +231,24 @@ def admin_panel_page(cookies):
                                 type="password",
                                 key=pw_input_key,
                                 label_visibility="collapsed",
-                                placeholder="Enter new password"
+                                placeholder="Enter new password",
                             )
                             if new_password and not st.session_state.get(pw_key):
-                                hashed = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt())
-                                conn = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES)
+                                hashed = bcrypt.hashpw(
+                                    new_password.encode(), bcrypt.gensalt()
+                                )
+                                conn = sqlite3.connect(
+                                    "users.db", detect_types=sqlite3.PARSE_DECLTYPES
+                                )
                                 c = conn.cursor()
-                                c.execute("UPDATE users SET password = ? WHERE username = ?", (hashed, username))
+                                c.execute(
+                                    "UPDATE users SET password = ? WHERE username = ?",
+                                    (hashed, username),
+                                )
                                 conn.commit()
                                 conn.close()
                                 st.session_state[pw_key] = True
-                                st.toast(f"Password for {username} updated.")
+                                st.toast(f"Password for {username} updated.", icon="✅")
                                 st.session_state[clear_pw_key] = True
                                 time.sleep(2)
                                 st.rerun()
@@ -178,8 +258,8 @@ def admin_panel_page(cookies):
             # User Sessions tab
             with tabs[1]:
                 st.subheader("User Sessions")
-                current_session_id = cookies.get('session_id')
-                conn = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES)
+                current_session_id = cookies.get("session_id")
+                conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
                 c = conn.cursor()
                 c.execute("SELECT username, session_id, expiry FROM sessions")
                 all_sessions = c.fetchall()
@@ -187,7 +267,9 @@ def admin_panel_page(cookies):
 
                 import datetime
                 from datetime import datetime as dt
+
                 from dateutil import parser
+
                 col1, col2, col3 = st.columns([3, 3, 2])
                 with col1:
                     st.markdown("**Username**")
@@ -209,6 +291,7 @@ def admin_panel_page(cookies):
                         expiry_str = str(expiry)
                         try:
                             from dateutil import parser
+
                             expiry_dt = parser.parse(expiry_str)
                             expiry_display = expiry_dt.strftime("%Y-%m-%d %H:%M:%S")
                         except Exception:
@@ -217,12 +300,17 @@ def admin_panel_page(cookies):
                     with col3:
                         if not is_current:
                             if st.button(f"Delete", key=f"del_sess_{session_id}"):
-                                conn = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES)
+                                conn = sqlite3.connect(
+                                    "users.db", detect_types=sqlite3.PARSE_DECLTYPES
+                                )
                                 c = conn.cursor()
-                                c.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
+                                c.execute(
+                                    "DELETE FROM sessions WHERE session_id = ?",
+                                    (session_id,),
+                                )
                                 conn.commit()
                                 conn.close()
-                                st.toast(f"Session {session_id} deleted.")
+                                st.toast(f"Session {session_id} deleted.", icon="✅")
                                 time.sleep(2)
                                 st.rerun()
                         else:
@@ -237,18 +325,22 @@ def admin_panel_page(cookies):
                     if add_role_submit and new_role:
                         if new_role not in roles:
                             try:
-                                conn = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES)
+                                conn = sqlite3.connect(
+                                    "users.db", detect_types=sqlite3.PARSE_DECLTYPES
+                                )
                                 c = conn.cursor()
-                                c.execute('INSERT INTO roles (role) VALUES (?)', (new_role,))
+                                c.execute(
+                                    "INSERT INTO roles (role) VALUES (?)", (new_role,)
+                                )
                                 conn.commit()
                                 conn.close()
-                                st.success(f"Role '{new_role}' added.")
+                                st.toast(f"Role '{new_role}' added.", icon="✅")
                                 time.sleep(2)
                                 st.rerun()
                             except sqlite3.IntegrityError:
-                                st.warning(f"Role '{new_role}' already exists.")
+                                st.toast(f"Role '{new_role}' already exists.", icon="⚠️")
                         else:
-                            st.warning(f"Role '{new_role}' already exists.")
+                            st.toast(f"Role '{new_role}' already exists.", icon="⚠️")
                 st.write("**Existing Roles:**")
                 all_roles_db = get_roles()
                 for r in all_roles_db:
@@ -258,21 +350,33 @@ def admin_panel_page(cookies):
                     with col2:
                         if r not in ("admin", "user"):
                             # Check if role is assigned to any page
-                            conn = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES)
+                            conn = sqlite3.connect(
+                                "users.db", detect_types=sqlite3.PARSE_DECLTYPES
+                            )
                             c = conn.cursor()
-                            c.execute('SELECT COUNT(*) FROM pages WHERE required_role = ?', (r,))
+                            c.execute(
+                                "SELECT COUNT(*) FROM pages WHERE required_role = ?",
+                                (r,),
+                            )
                             is_assigned = c.fetchone()[0] > 0
                             conn.close()
                             if is_assigned:
-                                st.button(f"Delete", key=f"del_role_{r}", disabled=True, help="Cannot delete: role is assigned to a page.")
+                                st.button(
+                                    f"Delete",
+                                    key=f"del_role_{r}",
+                                    disabled=True,
+                                    help="Cannot delete: role is assigned to a page.",
+                                )
                             else:
                                 if st.button(f"Delete", key=f"del_role_{r}"):
-                                    conn = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES)
+                                    conn = sqlite3.connect(
+                                        "users.db", detect_types=sqlite3.PARSE_DECLTYPES
+                                    )
                                     c = conn.cursor()
-                                    c.execute('DELETE FROM roles WHERE role = ?', (r,))
+                                    c.execute("DELETE FROM roles WHERE role = ?", (r,))
                                     conn.commit()
                                     conn.close()
-                                    st.success(f"Role '{r}' deleted.")
+                                    st.toast(f"Role '{r}' deleted.", icon="✅")
                                     time.sleep(2)
                                     st.rerun()
                         else:
@@ -283,16 +387,43 @@ def admin_panel_page(cookies):
                 all_roles = get_roles()
                 with st.form("add_page_form"):
                     new_page_name = st.text_input("Page Name", key="add_page_name")
-                    icon_options = ["📄", "🏠", "👤", "🔐", "⚙️", "📊", "📅", "📝", "📦", "💡", "⭐", "🔔", "📁", "🛒", "🗂️", "🧑‍💼"]
-                    new_icon = st.selectbox("Icon (emoji)", icon_options, index=0, key="add_page_icon")
+                    icon_options = [
+                        "📄",
+                        "🏠",
+                        "👤",
+                        "🔐",
+                        "⚙️",
+                        "📊",
+                        "📅",
+                        "📝",
+                        "📦",
+                        "💡",
+                        "⭐",
+                        "🔔",
+                        "📁",
+                        "🛒",
+                        "🗂️",
+                        "🧑‍💼",
+                    ]
+                    new_icon = st.selectbox(
+                        "Icon (emoji)", icon_options, index=0, key="add_page_icon"
+                    )
                     if all_roles:
-                        new_required_role = st.selectbox("Required Role", all_roles, key="add_page_role")
+                        new_required_role = st.selectbox(
+                            "Required Role", all_roles, key="add_page_role"
+                        )
                     else:
-                        st.warning("No roles available. Please add a role first in the Manage Roles tab.")
+                        st.toast("No roles available. Please add a role first in the Manage Roles tab.", icon="⚠️")
                         new_required_role = None
-                    new_role_input = st.text_input("Or add a new role", key="add_page_new_role")
-                    new_enabled = st.checkbox("Enabled", value=True, key="add_page_enabled")
-                    add_page_submit = st.form_submit_button("Add Page", disabled=not all_roles)
+                    new_role_input = st.text_input(
+                        "Or add a new role", key="add_page_new_role"
+                    )
+                    new_enabled = st.checkbox(
+                        "Enabled", value=True, key="add_page_enabled"
+                    )
+                    add_page_submit = st.form_submit_button(
+                        "Add Page", disabled=not all_roles
+                    )
                     if add_page_submit and new_page_name:
                         # Determine the role to use
                         role_to_use = new_required_role
@@ -300,57 +431,83 @@ def admin_panel_page(cookies):
                             # Add new role if it doesn't exist
                             if new_role_input not in all_roles:
                                 try:
-                                    conn = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES)
+                                    conn = sqlite3.connect(
+                                        "users.db", detect_types=sqlite3.PARSE_DECLTYPES
+                                    )
                                     c = conn.cursor()
-                                    c.execute('INSERT INTO roles (role) VALUES (?)', (new_role_input,))
+                                    c.execute(
+                                        "INSERT INTO roles (role) VALUES (?)",
+                                        (new_role_input,),
+                                    )
                                     conn.commit()
                                     conn.close()
-                                    st.success(f"Role '{new_role_input}' added.")
+                                    st.toast(f"Role '{new_role_input}' added.", icon="✅")
                                     role_to_use = new_role_input
                                     all_roles.append(new_role_input)
                                 except sqlite3.IntegrityError:
-                                    st.warning(f"Role '{new_role_input}' already exists.")
+                                    st.toast(f"Role '{new_role_input}' already exists.", icon="⚠️")
                                     role_to_use = new_role_input
                             else:
-                                st.info(f"Role '{new_role_input}' already exists. Using it as required role.")
+                                st.toast(f"Role '{new_role_input}' already exists. Using it as required role.", icon="ℹ️")
                                 role_to_use = new_role_input
                         # Generate file path
-                        file_path = f"pages/{new_page_name.lower().replace(' ', '_')}.py"
+                        file_path = (
+                            f"pages/{new_page_name.lower().replace(' ', '_')}.py"
+                        )
                         # Check for duplicate page name
-                        conn = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES)
+                        conn = sqlite3.connect(
+                            "users.db", detect_types=sqlite3.PARSE_DECLTYPES
+                        )
                         c = conn.cursor()
-                        c.execute('SELECT COUNT(*) FROM pages WHERE page_name = ?', (new_page_name,))
+                        c.execute(
+                            "SELECT COUNT(*) FROM pages WHERE page_name = ?",
+                            (new_page_name,),
+                        )
                         if c.fetchone()[0] > 0:
-                            st.warning(f"A page with the name '{new_page_name}' already exists.")
+                            st.toast(f"A page with the name '{new_page_name}' already exists.", icon="⚠️")
                             conn.close()
                         else:
                             # Create the file with a basic template if it doesn't exist
                             if not os.path.exists(file_path):
                                 with open(file_path, "w") as f:
-                                    f.write(f"import streamlit as st\n\ndef {new_page_name.lower().replace(' ', '_')}_page(cookies):\n    st.title(\"{new_page_name}\")\n    st.write(\"This is the {new_page_name} page.\")\n")
+                                    f.write(
+                                        f"import streamlit as st\n\ndef {new_page_name.lower().replace(' ', '_')}_page(cookies):\n    st.title(\"{new_page_name}\")\n    st.write(\"This is the {new_page_name} page.\")\n"
+                                    )
                             # Insert into pages
                             try:
-                                c.execute('INSERT INTO pages (page_name, required_role, icon, enabled, file_path) VALUES (?, ?, ?, ?, ?)',
-                                          (new_page_name, role_to_use, new_icon, int(new_enabled), file_path))
+                                c.execute(
+                                    "INSERT INTO pages (page_name, required_role, icon, enabled, file_path) VALUES (?, ?, ?, ?, ?)",
+                                    (
+                                        new_page_name,
+                                        role_to_use,
+                                        new_icon,
+                                        int(new_enabled),
+                                        file_path,
+                                    ),
+                                )
                                 conn.commit()
-                                st.success(f"Page '{new_page_name}' created.")
+                                st.toast(f"Page '{new_page_name}' created.", icon="✅")
                                 conn.close()
                                 time.sleep(2)
                                 st.rerun()
                             except sqlite3.IntegrityError:
-                                st.warning(f"A page with the name '{new_page_name}' already exists.")
+                                st.toast(f"A page with the name '{new_page_name}' already exists.", icon="⚠️")
                                 conn.close()
 
             # View Pages tab
             with tabs[4]:
                 all_roles = []
-                conn = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES)
+                conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
                 c = conn.cursor()
-                c.execute('SELECT page_name, required_role, icon, enabled, file_path FROM pages')
+                c.execute(
+                    "SELECT page_name, required_role, icon, enabled, file_path FROM pages"
+                )
                 all_pages = c.fetchall()
                 conn.close()
                 # Add column headings
-                header1, header2, header3, header4, header5, header6, header7 = st.columns([3, 2, 1, 2, 4, 2, 2])
+                header1, header2, header3, header4, header5, header6, header7 = (
+                    st.columns([3, 2, 1, 2, 4, 2, 2])
+                )
                 with header1:
                     st.markdown("**Page Name**")
                 with header2:
@@ -366,7 +523,16 @@ def admin_panel_page(cookies):
                 with header7:
                     st.markdown("**Delete**")
                 for page_name, required_role, icon, enabled, file_path in all_pages:
-                    col1, col2, col3, col4, col5, col6, col7 = st.columns([3, 2, 1, 2, 4, 2, 2])
+                    if page_name in (
+                        "Dashboard",
+                        "User Profile",
+                        "Admin Panel",
+                        "Edit Page File",
+                    ):
+                        continue  # Skip core pages
+                    col1, col2, col3, col4, col5, col6, col7 = st.columns(
+                        [3, 2, 1, 2, 4, 2, 2]
+                    )
                     with col1:
                         st.write(page_name)
                     with col2:
@@ -378,69 +544,92 @@ def admin_panel_page(cookies):
                     with col5:
                         st.write(file_path)
                     with col6:
-                        if page_name not in ("Dashboard", "User Profile", "Admin Panel"):
-                            if st.button(f"Edit", key=f"edit_page_{page_name}"):
-                                if "confirm_delete_page" in st.session_state:
-                                    del st.session_state["confirm_delete_page"]
-                                st.session_state["edit_page"] = page_name
-                                st.session_state["edit_page_active"] = True
-                        else:
-                            st.write("")
+                        if st.button(f"Edit", key=f"edit_page_{page_name}"):
+                            if "confirm_delete_page" in st.session_state:
+                                del st.session_state["confirm_delete_page"]
+                            st.session_state["edit_page"] = page_name
+                            st.session_state["edit_page_active"] = True
                     with col7:
-                        if page_name not in ("Dashboard", "User Profile", "Admin Panel"):
-                            delete_key = f"del_page_{page_name}"
-                            if st.button(f"Delete", key=delete_key):
-                                st.session_state["confirm_delete_page"] = page_name
-                        else:
-                            st.write("")
+                        delete_key = f"del_page_{page_name}"
+                        if st.button(f"Delete", key=delete_key):
+                            st.session_state["confirm_delete_page"] = page_name
 
                 # Confirmation dialog for deleting a page
                 confirm_delete_page = st.session_state.get("confirm_delete_page")
                 if confirm_delete_page:
+                    # Set active flag when dialog is open
+                    st.session_state["confirm_delete_page_active"] = True
                     confirm_delete_page_dialog(confirm_delete_page)
                 else:
                     # Call the dialog if edit_page is set
                     edit_page = st.session_state.get("edit_page")
                     if edit_page:
+                        # Set active flag when dialog is open
+                        st.session_state["edit_page_active"] = True
                         # Fetch current values
-                        conn = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES)
+                        conn = sqlite3.connect(
+                            "users.db", detect_types=sqlite3.PARSE_DECLTYPES
+                        )
                         c = conn.cursor()
-                        c.execute('SELECT page_name, required_role, icon, enabled FROM pages WHERE page_name = ?', (edit_page,))
+                        c.execute(
+                            "SELECT page_name, required_role, icon, enabled FROM pages WHERE page_name = ?",
+                            (edit_page,),
+                        )
                         row = c.fetchone()
                         conn.close()
                         if row:
-                            current_name, current_role, current_icon, current_enabled = row
-                            edit_page_dialog(current_name, current_role, current_icon, current_enabled)
+                            (
+                                current_name,
+                                current_role,
+                                current_icon,
+                                current_enabled,
+                            ) = row
+                            edit_page_dialog(
+                                current_name,
+                                current_role,
+                                current_icon,
+                                current_enabled,
+                            )
         else:
-            st.error("Access denied: Admin role required.")
+            st.toast("Access denied: Admin role required.", icon="❌")
             st.stop()
     else:
-        st.error("Please login to access this page.")
+        st.toast("Please login to access this page.", icon="❌")
         st.stop()
+
+    # Always reset dialog active flags at the end of the function
+    st.session_state["edit_page_active"] = False
+    st.session_state["confirm_delete_page_active"] = False
+
 
 # Helper to fetch roles from the database
 def get_roles():
-    conn = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES)
+    conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
     c = conn.cursor()
-    c.execute('SELECT role FROM roles')
+    c.execute("SELECT role FROM roles")
     roles = [row[0] for row in c.fetchall()]
     conn.close()
     return roles
 
+
 # Helper to fetch roles for a user
 def get_user_roles(username):
-    conn = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES)
+    conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
     c = conn.cursor()
-    c.execute('SELECT role FROM user_roles WHERE username = ?', (username,))
+    c.execute("SELECT role FROM user_roles WHERE username = ?", (username,))
     user_roles = [row[0] for row in c.fetchall()]
     conn.close()
     return user_roles
 
+
 # Helper to update roles for a user
 def update_user_roles(username, new_roles):
-    conn = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES)
+    conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
     c = conn.cursor()
-    c.execute('DELETE FROM user_roles WHERE username = ?', (username,))
-    c.executemany('INSERT INTO user_roles (username, role) VALUES (?, ?)', [(username, r) for r in new_roles])
+    c.execute("DELETE FROM user_roles WHERE username = ?", (username,))
+    c.executemany(
+        "INSERT INTO user_roles (username, role) VALUES (?, ?)",
+        [(username, r) for r in new_roles],
+    )
     conn.commit()
-    conn.close() 
+    conn.close()

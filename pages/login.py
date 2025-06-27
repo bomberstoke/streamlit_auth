@@ -1,5 +1,7 @@
 import streamlit as st
-from auth import verify_user, create_session
+
+from auth import create_session, verify_user
+
 
 # Login page for users
 def login_page(cookies):
@@ -18,4 +20,4 @@ def login_page(cookies):
                 st.success("Login successful!")
                 st.rerun()
             else:
-                st.error("Invalid credentials") 
+                st.error("Invalid credentials")

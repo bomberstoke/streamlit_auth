@@ -1,23 +1,31 @@
-import streamlit as st
-from auth import register_user
 import sqlite3
+
+import streamlit as st
+
+from auth import register_user
+
 
 # Helper to fetch roles from the database
 def get_roles():
-    conn = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES)
+    conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
     c = conn.cursor()
-    c.execute('SELECT role FROM roles')
+    c.execute("SELECT role FROM roles")
     roles = [row[0] for row in c.fetchall()]
     conn.close()
     return roles
 
+
 # Helper to assign a role to a user in user_roles table
 def assign_role(username, role):
-    conn = sqlite3.connect('users.db', detect_types=sqlite3.PARSE_DECLTYPES)
+    conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
     c = conn.cursor()
-    c.execute('INSERT OR IGNORE INTO user_roles (username, role) VALUES (?, ?)', (username, role))
+    c.execute(
+        "INSERT OR IGNORE INTO user_roles (username, role) VALUES (?, ?)",
+        (username, role),
+    )
     conn.commit()
     conn.close()
+
 
 # Registration page for new users
 def register_page():
@@ -37,4 +45,4 @@ def register_page():
                 assign_role(username, "user")
                 st.success("Registration successful!")
             else:
-                st.error("Username already exists") 
+                st.error("Username already exists")
