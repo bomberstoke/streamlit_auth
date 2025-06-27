@@ -62,7 +62,8 @@ def init_db():
             required_role TEXT,
             icon TEXT,
             enabled INTEGER,
-            file_path TEXT
+            file_path TEXT,
+            menu_order INTEGER DEFAULT 0
         )"""
     )
     # Initialize default roles if empty
@@ -73,15 +74,33 @@ def init_db():
     c.execute("SELECT COUNT(*) FROM pages")
     if c.fetchone()[0] == 0:
         c.executemany(
-            "INSERT INTO pages (page_name, required_role, icon, enabled, file_path) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO pages (page_name, required_role, icon, enabled, file_path, menu_order) VALUES (?, ?, ?, ?, ?, ?)",
             [
-                ("Dashboard", "user", "🏠", 1, "pages/dashboard.py"),
-                ("User Profile", "user", "👤", 1, "pages/user_profile.py"),
-                ("Admin Panel", "admin", "🔐", 1, "pages/admin_panel.py"),
-                ("Edit Page File", "admin", "📝", 1, "pages/edit_page_file.py"),
+                ("Dashboard", "user", "🏠", 1, "pages/dashboard.py", 1),
+                ("User Profile", "user", "👤", 1, "pages/user_profile.py", 2),
+                ("Admin Panel", "admin", "🔐", 1, "pages/admin_panel.py", 3),
+                ("Edit Page File", "admin", "📝", 1, "pages/edit_page_file.py", 4),
             ],
         )
     conn.commit()
+
+    # Migration: Add menu_order column if it doesn't exist
+    try:
+        c.execute("SELECT menu_order FROM pages LIMIT 1")
+    except sqlite3.OperationalError:
+        # Add menu_order column
+        c.execute("ALTER TABLE pages ADD COLUMN menu_order INTEGER DEFAULT 0")
+        # Set default order for existing pages
+        c.execute("UPDATE pages SET menu_order = 1 WHERE page_name = 'Dashboard'")
+        c.execute("UPDATE pages SET menu_order = 2 WHERE page_name = 'User Profile'")
+        c.execute("UPDATE pages SET menu_order = 3 WHERE page_name = 'Admin Panel'")
+        c.execute("UPDATE pages SET menu_order = 4 WHERE page_name = 'Edit Page File'")
+        # Set order for other pages based on their current position
+        c.execute("SELECT page_name FROM pages WHERE menu_order = 0 ORDER BY page_name")
+        other_pages = c.fetchall()
+        for i, (page_name,) in enumerate(other_pages, start=5):
+            c.execute("UPDATE pages SET menu_order = ? WHERE page_name = ?", (i, page_name))
+        conn.commit()
 
     # Auto-create admin user with password '1234' if not exists
     c.execute("SELECT COUNT(*) FROM users WHERE username = ?", ("admin",))

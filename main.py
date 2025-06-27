@@ -37,7 +37,7 @@ def get_enabled_pages_with_roles():
     conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
     c = conn.cursor()
     c.execute(
-        "SELECT page_name, icon, file_path, required_role FROM pages WHERE enabled = 1"
+        "SELECT page_name, icon, file_path, required_role FROM pages WHERE enabled = 1 ORDER BY menu_order, page_name"
     )
     pages = c.fetchall()
     conn.close()
@@ -83,7 +83,6 @@ def main():
     # Dynamically load enabled pages the user has access to
     enabled_pages = get_enabled_pages_with_roles()
     page_objs = []
-    admin_panel_obj = None
     for page_name, icon, file_path, required_role in enabled_pages:
         # Skip login/register, handled separately
         if page_name in ("Login", "Register"):
@@ -118,12 +117,7 @@ def main():
         page_obj = st.Page(
             make_page_func(page_func, page_name), title=page_name, icon=icon
         )
-        if page_name == "Admin Panel":
-            admin_panel_obj = page_obj
-        else:
-            page_objs.append(page_obj)
-    if admin_panel_obj:
-        page_objs.append(admin_panel_obj)
+        page_objs.append(page_obj)
 
     # Define navigation pages based on authentication status
     if username:

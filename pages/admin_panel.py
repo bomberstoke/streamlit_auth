@@ -4,6 +4,7 @@ import time
 
 import bcrypt
 import streamlit as st
+import streamlit_sortables as sortables
 
 from auth import verify_session
 
@@ -162,7 +163,7 @@ def admin_panel_page(cookies):
 
             # Create tabs for each admin section
             tabs = st.tabs(
-                ["Users", "User Sessions", "Manage Roles", "New Page", "View Pages"]
+                ["Users", "User Sessions", "Manage Roles", "New Page", "View Pages", "Menu Order"]
             )
 
             # Users tab
@@ -460,11 +461,15 @@ def admin_panel_page(cookies):
                         file_path = (
                             f"pages/{new_page_name.lower().replace(' ', '_')}.py"
                         )
-                        # Check for duplicate page name
+                        # Get the next available menu order
                         conn = sqlite3.connect(
                             "users.db", detect_types=sqlite3.PARSE_DECLTYPES
                         )
                         c = conn.cursor()
+                        c.execute("SELECT MAX(menu_order) FROM pages")
+                        max_order = c.fetchone()[0]
+                        next_order = (max_order or 0) + 1
+                        # Check for duplicate page name
                         c.execute(
                             "SELECT COUNT(*) FROM pages WHERE page_name = ?",
                             (new_page_name,),
@@ -482,13 +487,14 @@ def admin_panel_page(cookies):
                             # Insert into pages
                             try:
                                 c.execute(
-                                    "INSERT INTO pages (page_name, required_role, icon, enabled, file_path) VALUES (?, ?, ?, ?, ?)",
+                                    "INSERT INTO pages (page_name, required_role, icon, enabled, file_path, menu_order) VALUES (?, ?, ?, ?, ?, ?)",
                                     (
                                         new_page_name,
                                         role_to_use,
                                         new_icon,
                                         int(new_enabled),
                                         file_path,
+                                        next_order,
                                     ),
                                 )
                                 conn.commit()
@@ -506,13 +512,13 @@ def admin_panel_page(cookies):
                 conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
                 c = conn.cursor()
                 c.execute(
-                    "SELECT page_name, required_role, icon, enabled, file_path FROM pages"
+                    "SELECT page_name, required_role, icon, enabled, file_path, menu_order FROM pages ORDER BY menu_order, page_name"
                 )
                 all_pages = c.fetchall()
                 conn.close()
                 # Add column headings
-                header1, header2, header3, header4, header5, header6, header7 = (
-                    st.columns([3, 2, 1, 2, 4, 2, 2])
+                header1, header2, header3, header4, header5, header6, header7, header8 = (
+                    st.columns([3, 2, 1, 2, 2, 4, 2, 2])
                 )
                 with header1:
                     st.markdown("**Page Name**")
@@ -523,12 +529,14 @@ def admin_panel_page(cookies):
                 with header4:
                     st.markdown("**Status**")
                 with header5:
-                    st.markdown("**File Path**")
+                    st.markdown("**Order**")
                 with header6:
-                    st.markdown("**Edit**")
+                    st.markdown("**File Path**")
                 with header7:
+                    st.markdown("**Edit**")
+                with header8:
                     st.markdown("**Delete**")
-                for page_name, required_role, icon, enabled, file_path in all_pages:
+                for page_name, required_role, icon, enabled, file_path, menu_order in all_pages:
                     if page_name in (
                         "Dashboard",
                         "User Profile",
@@ -536,8 +544,8 @@ def admin_panel_page(cookies):
                         "Edit Page File",
                     ):
                         continue  # Skip core pages
-                    col1, col2, col3, col4, col5, col6, col7 = st.columns(
-                        [3, 2, 1, 2, 4, 2, 2]
+                    col1, col2, col3, col4, col5, col6, col7, col8 = st.columns(
+                        [3, 2, 1, 2, 2, 4, 2, 2]
                     )
                     with col1:
                         st.write(page_name)
@@ -548,14 +556,16 @@ def admin_panel_page(cookies):
                     with col4:
                         st.write("Enabled" if enabled else "Disabled")
                     with col5:
-                        st.write(file_path)
+                        st.write(menu_order or "N/A")
                     with col6:
+                        st.write(file_path)
+                    with col7:
                         if st.button(f"Edit", key=f"edit_page_{page_name}"):
                             if "confirm_delete_page" in st.session_state:
                                 del st.session_state["confirm_delete_page"]
                             st.session_state["edit_page"] = page_name
                             st.session_state["edit_page_active"] = True
-                    with col7:
+                    with col8:
                         delete_key = f"del_page_{page_name}"
                         if st.button(f"Delete", key=delete_key):
                             st.session_state["confirm_delete_page"] = page_name
@@ -596,6 +606,54 @@ def admin_panel_page(cookies):
                                 current_icon,
                                 current_enabled,
                             )
+
+            # Menu Order tab
+            with tabs[5]:
+                st.subheader("Menu Order")
+                st.write("Drag and drop to reorder pages in the menu.")
+                # Fetch all pages ordered by current menu_order
+                conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
+                c = conn.cursor()
+                c.execute(
+                    "SELECT page_name, required_role, icon, enabled, menu_order FROM pages ORDER BY menu_order, page_name"
+                )
+                all_pages = c.fetchall()
+                conn.close()
+                # Prepare items for sortables
+                sortable_items = [
+                    f"{icon} {page_name} ({required_role}) {'✅' if enabled else '❌'}"
+                    for page_name, required_role, icon, enabled, _ in all_pages
+                ]
+                page_names = [page_name for page_name, _, _, _, _ in all_pages]
+                # Show sortable list
+                new_ordered_items = sortables.sort_items(
+                    sortable_items,
+                    direction="vertical",
+                    key="menu_order_sortable",
+                )
+                
+                # Check if the order has changed
+                if new_ordered_items != sortable_items:
+                    # Map new_ordered_items to page_names by their new order
+                    new_page_order = []
+                    for item in new_ordered_items:
+                        # Find the original index of this item in sortable_items
+                        original_index = sortable_items.index(item)
+                        new_page_order.append(page_names[original_index])
+                    
+                    # Update the database with new order
+                    conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
+                    c = conn.cursor()
+                    for idx, page_name in enumerate(new_page_order, start=1):
+                        c.execute(
+                            "UPDATE pages SET menu_order = ? WHERE page_name = ?",
+                            (idx, page_name)
+                        )
+                    conn.commit()
+                    conn.close()
+                    st.toast("Menu order updated!", icon="✅")
+                    st.rerun()
+
         else:
             st.toast("Access denied: Admin role required.", icon="❌")
             st.stop()
