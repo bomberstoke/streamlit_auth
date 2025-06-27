@@ -204,13 +204,19 @@ def admin_panel_page(cookies):
                             st.write(", ".join(get_user_roles(username)))
                         else:
                             user_roles = get_user_roles(username)
+                            # Ensure 'user' is always included and cannot be removed
+                            roles_for_multiselect = [r for r in all_roles if r != 'user']
+                            if 'user' not in user_roles:
+                                user_roles.append('user')
                             new_roles = st.multiselect(
                                 "",
-                                all_roles,
-                                default=user_roles,
+                                roles_for_multiselect,
+                                default=[r for r in user_roles if r != 'user'],
                                 key=f"roles_{username}",
                                 label_visibility="collapsed",
                             )
+                            # Always add 'user' to the selected roles
+                            new_roles.append('user')
                             if set(new_roles) != set(user_roles):
                                 update_user_roles(username, new_roles)
                                 st.toast(f"Roles for {username} updated.", icon="✅")
