@@ -1,8 +1,9 @@
 import sqlite3
+import time
 
 import streamlit as st
 
-from auth import register_user
+from auth import register_user, create_session
 
 
 # Helper to assign a role to a user in user_roles table
@@ -18,7 +19,7 @@ def assign_role(username, role):
 
 
 # Registration page for new users
-def register_page():
+def register_page(cookies):
     st.title("Register")
     # Registration form
     with st.form("register_form"):
@@ -33,6 +34,9 @@ def register_page():
                 st.toast("Passwords do not match", icon="⚠️")
             elif register_user(username, password, "user"):
                 assign_role(username, "user")
-                st.toast("Registration successful!", icon="✅")
+                create_session(username, cookies)
+                st.toast("Registration successful! You are now logged in.", icon="✅")
+                time.sleep(1)
+                st.rerun()
             else:
                 st.toast("Username already exists", icon="❌")

@@ -140,7 +140,7 @@ def main():
         # Unauthenticated user pages
         pages = [
             st.Page(login_page, title="Login", icon="🔒"),
-            st.Page(register_page, title="Register", icon="📝"),
+            st.Page(lambda: register_page(cookies), title="Register", icon="📝"),
         ]
 
     # Set up and run navigation
