@@ -42,10 +42,14 @@ def edit_page_dialog(current_name, current_role, current_icon, current_enabled):
             key="edit_page_icon",
         )
         if all_roles:
+            # Check if current_role exists in available roles, if not use first available role
+            current_role_index = 0
+            if current_role in all_roles:
+                current_role_index = all_roles.index(current_role)
             new_required_role = st.selectbox(
                 "Required Role",
                 all_roles,
-                index=all_roles.index(current_role) if current_role in all_roles else 0,
+                index=current_role_index,
                 key="edit_page_role",
             )
         else:
@@ -380,10 +384,19 @@ def admin_panel_page(cookies):
                                         "users.db", detect_types=sqlite3.PARSE_DECLTYPES
                                     )
                                     c = conn.cursor()
+                                    
+                                    # Remove the role from all users first
+                                    c.execute("DELETE FROM user_roles WHERE role = ?", (r,))
+                                    
+                                    # Delete the role from roles table
                                     c.execute("DELETE FROM roles WHERE role = ?", (r,))
+                                    
+                                    # Clean up orphaned roles in pages - set them to 'user' role
+                                    c.execute("UPDATE pages SET required_role = 'user' WHERE required_role = ?", (r,))
+                                    
                                     conn.commit()
                                     conn.close()
-                                    st.toast(f"Role '{r}' deleted.", icon="✅")
+                                    st.toast(f"Role '{r}' deleted and removed from all users.", icon="✅")
                                     time.sleep(2)
                                     st.rerun()
                         else:
