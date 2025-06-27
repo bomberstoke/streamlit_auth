@@ -39,49 +39,63 @@ def create_session(username, cookies):
 
     session_id = str(uuid.uuid4())
     expiry = datetime.now() + timedelta(days=0.5)
+    
     conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
     c = conn.cursor()
-    c.execute(
-        "INSERT INTO sessions (session_id, username, expiry) VALUES (?, ?, ?)",
-        (session_id, username, expiry),
-    )
-    conn.commit()
-    conn.close()
-    cookies["session_id"] = session_id
-    cookies.save()
-    return session_id
+    try:
+        c.execute(
+            "INSERT INTO sessions (session_id, username, expiry) VALUES (?, ?, ?)",
+            (session_id, username, expiry),
+        )
+        conn.commit()
+        cookies["session_id"] = session_id
+        cookies.save()
+        return session_id
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
 
 
 # Verify the current session using cookies and clean up expired sessions
 def verify_session(cookies):
-    # Clean up expired sessions
-    conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
-    c = conn.cursor()
-    c.execute("DELETE FROM sessions WHERE expiry < ?", (datetime.now(),))
-    conn.commit()
-    session_id = cookies.get("session_id")
-    if not session_id:
-        conn.close()
-        return None, []
-    # Get the username for the current session_id
-    c.execute("SELECT username FROM sessions WHERE session_id = ?", (session_id,))
-    user_result = c.fetchone()
-    if not user_result:
-        conn.close()
-        return None, []
-    username = user_result[0]
-    # Get all sessions for this user
-    c.execute("SELECT expiry FROM sessions WHERE username = ?", (username,))
-    sessions = c.fetchall()
-    for session in sessions:
-        if datetime.now() < session[0]:
-            # Fetch all roles for this user
-            c.execute("SELECT role FROM user_roles WHERE username = ?", (username,))
-            roles = [row[0] for row in c.fetchall()]
+    try:
+        # Clean up expired sessions
+        conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
+        c = conn.cursor()
+        c.execute("DELETE FROM sessions WHERE expiry < ?", (datetime.now(),))
+        conn.commit()
+        
+        session_id = cookies.get("session_id")
+        if not session_id:
             conn.close()
-            return username, roles
-    conn.close()
-    return None, []
+            return None, []
+            
+        # Get the username for the current session_id
+        c.execute("SELECT username FROM sessions WHERE session_id = ?", (session_id,))
+        user_result = c.fetchone()
+        if not user_result:
+            conn.close()
+            return None, []
+            
+        username = user_result[0]
+        
+        # Get all sessions for this user
+        c.execute("SELECT expiry FROM sessions WHERE username = ?", (username,))
+        sessions = c.fetchall()
+        for session in sessions:
+            if datetime.now() < session[0]:
+                # Fetch all roles for this user
+                c.execute("SELECT role FROM user_roles WHERE username = ?", (username,))
+                roles = [row[0] for row in c.fetchall()]
+                conn.close()
+                return username, roles
+        conn.close()
+        return None, []
+    except Exception as e:
+        # If there's any error in session verification, return None
+        return None, []
 
 
 # Clear the current session from the database and cookies

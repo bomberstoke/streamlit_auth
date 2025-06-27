@@ -498,6 +498,27 @@ def admin_panel_page(cookies):
                                     ),
                                 )
                                 conn.commit()
+                                
+                                # Move Admin Panel to the end of the menu
+                                c.execute("SELECT MAX(menu_order) FROM pages")
+                                max_order = c.fetchone()[0]
+                                # Set Admin Panel to the highest order + 1 to ensure it's at the end
+                                admin_panel_order = max_order + 1
+                                c.execute("UPDATE pages SET menu_order = ? WHERE page_name = 'Admin Panel'", (admin_panel_order,))
+                                
+                                # Reorder all pages sequentially (excluding Admin Panel)
+                                c.execute("SELECT page_name FROM pages WHERE page_name != 'Admin Panel' ORDER BY menu_order")
+                                pages_to_reorder = c.fetchall()
+                                for i, (page_name,) in enumerate(pages_to_reorder, start=1):
+                                    c.execute("UPDATE pages SET menu_order = ? WHERE page_name = ?", (i, page_name))
+                                
+                                # Set Admin Panel to the end
+                                c.execute("SELECT COUNT(*) FROM pages WHERE page_name != 'Admin Panel'")
+                                total_pages = c.fetchone()[0]
+                                c.execute("UPDATE pages SET menu_order = ? WHERE page_name = 'Admin Panel'", (total_pages + 1,))
+                                
+                                conn.commit()
+                                
                                 st.toast(f"Page '{new_page_name}' created.", icon="✅")
                                 conn.close()
                                 time.sleep(2)
@@ -518,7 +539,7 @@ def admin_panel_page(cookies):
                 conn.close()
                 # Add column headings
                 header1, header2, header3, header4, header5, header6, header7, header8 = (
-                    st.columns([3, 2, 1, 2, 2, 4, 2, 2])
+                    st.columns([3, 3, 2, 2, 2, 4, 2, 3])
                 )
                 with header1:
                     st.markdown("**Page Name**")
@@ -541,11 +562,11 @@ def admin_panel_page(cookies):
                         "Dashboard",
                         "User Profile",
                         "Admin Panel",
-                        "Edit Page File",
+                        "Edit Page",
                     ):
                         continue  # Skip core pages
                     col1, col2, col3, col4, col5, col6, col7, col8 = st.columns(
-                        [3, 2, 1, 2, 2, 4, 2, 2]
+                        [3, 3, 2, 2, 2, 4, 2, 3]
                     )
                     with col1:
                         st.write(page_name)
@@ -554,11 +575,14 @@ def admin_panel_page(cookies):
                     with col3:
                         st.write(icon)
                     with col4:
-                        st.write("Enabled" if enabled else "Disabled")
+                        status_icon = "✅" if enabled else "❌"
+                        st.write(status_icon)
                     with col5:
                         st.write(menu_order or "N/A")
                     with col6:
-                        st.write(file_path)
+                        # Remove "pages/" prefix from file path for cleaner display
+                        clean_file_path = file_path.replace("pages/", "") if file_path else file_path
+                        st.write(clean_file_path)
                     with col7:
                         if st.button(f"Edit", key=f"edit_page_{page_name}"):
                             if "confirm_delete_page" in st.session_state:
@@ -611,6 +635,7 @@ def admin_panel_page(cookies):
             with tabs[5]:
                 st.subheader("Menu Order")
                 st.write("Drag and drop to reorder pages in the menu.")
+                
                 # Fetch all pages ordered by current menu_order
                 conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
                 c = conn.cursor()
@@ -619,17 +644,23 @@ def admin_panel_page(cookies):
                 )
                 all_pages = c.fetchall()
                 conn.close()
+                
                 # Prepare items for sortables
                 sortable_items = [
                     f"{icon} {page_name} ({required_role}) {'✅' if enabled else '❌'}"
                     for page_name, required_role, icon, enabled, _ in all_pages
                 ]
                 page_names = [page_name for page_name, _, _, _, _ in all_pages]
+                
+                # Create a unique key based on the current state to force refresh when status changes
+                status_hash = hash(tuple((name, enabled) for name, _, _, enabled, _ in all_pages))
+                sortable_key = f"menu_order_sortable_{status_hash}"
+                
                 # Show sortable list
                 new_ordered_items = sortables.sort_items(
                     sortable_items,
                     direction="vertical",
-                    key="menu_order_sortable",
+                    key=sortable_key,
                 )
                 
                 # Check if the order has changed
@@ -637,9 +668,31 @@ def admin_panel_page(cookies):
                     # Map new_ordered_items to page_names by their new order
                     new_page_order = []
                     for item in new_ordered_items:
-                        # Find the original index of this item in sortable_items
-                        original_index = sortable_items.index(item)
-                        new_page_order.append(page_names[original_index])
+                        # Find the original index by matching the page name and role, ignoring status
+                        for i, original_item in enumerate(sortable_items):
+                            # Extract page name and role from both items (ignore status)
+                            if "(" in item and ")" in item:
+                                item_parts = item.split("(")[0].strip()
+                                item_role = item.split("(")[1].split(")")[0].strip()
+                            else:
+                                continue
+                                
+                            if "(" in original_item and ")" in original_item:
+                                original_parts = original_item.split("(")[0].strip()
+                                original_role = original_item.split("(")[1].split(")")[0].strip()
+                            else:
+                                continue
+                            
+                            # Match by page name and role (ignore status)
+                            if item_parts == original_parts and item_role == original_role:
+                                new_page_order.append(page_names[i])
+                                break
+                        else:
+                            # Fallback: try to find by page name only
+                            for i, page_name in enumerate(page_names):
+                                if page_name in item:
+                                    new_page_order.append(page_name)
+                                    break
                     
                     # Update the database with new order
                     conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)

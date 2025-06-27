@@ -1,4 +1,5 @@
 import streamlit as st
+import time
 
 from auth import create_session, verify_user
 
@@ -6,6 +7,7 @@ from auth import create_session, verify_user
 # Login page for users
 def login_page(cookies):
     st.title("Login")
+    
     # Login form
     with st.form("login_form"):
         username = st.text_input("Username")
@@ -18,6 +20,8 @@ def login_page(cookies):
             if role:
                 create_session(username, cookies)
                 st.toast("Login successful!", icon="✅")
+                # Add a small delay to ensure cookies are saved
+                time.sleep(0.5)
                 st.rerun()
             else:
                 st.toast("Invalid credentials", icon="❌")

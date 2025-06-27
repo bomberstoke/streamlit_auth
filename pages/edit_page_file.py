@@ -6,7 +6,7 @@ import streamlit_ace as st_ace
 import time
 
 
-def edit_page_file_page(cookies):
+def edit_page_page(cookies):
     # Clear modal state if the dialog was closed with the X
     if "show_save_confirm_modal" in st.session_state and not st.session_state.get("save_confirm_active"):
         st.session_state.pop("show_save_confirm_modal", None)
