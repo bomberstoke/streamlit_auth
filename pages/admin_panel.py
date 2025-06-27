@@ -705,6 +705,7 @@ def admin_panel_page(cookies):
                     conn.commit()
                     conn.close()
                     st.toast("Menu order updated!", icon="✅")
+                    time.sleep(1)
                     st.rerun()
 
         else:
