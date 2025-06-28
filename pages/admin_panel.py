@@ -146,6 +146,15 @@ def confirm_delete_page_dialog(page_name):
 
 # Admin panel page for managing users and sessions
 def admin_panel_page(cookies):
+    # Add custom CSS for max-width
+    st.markdown("""
+    <style>
+    section[data-testid="stMain"] > div[data-testid="stMainBlockContainer"] {
+        max-width: 1200px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
     # Clear dialog state if the dialog was closed with the X
     if "edit_page" in st.session_state and not st.session_state.get("edit_page_active"):
         del st.session_state["edit_page"]
@@ -495,7 +504,28 @@ def admin_panel_page(cookies):
                             if not os.path.exists(file_path):
                                 with open(file_path, "w") as f:
                                     f.write(
-                                        f"import streamlit as st\n\ndef {new_page_name.lower().replace(' ', '_')}_page(cookies):\n    st.title(\"{new_page_name}\")\n    st.write(\"This is the {new_page_name} page.\")\n"
+                                        f'''import streamlit as st
+
+def {new_page_name.lower().replace(' ', '_')}_page(cookies):
+    # Add custom CSS for max-width and padding
+    st.markdown("""
+    <style>
+    section[data-testid="stMain"] > div[data-testid="stMainBlockContainer"] {{
+        max-width: 90%;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+    st.markdown("""
+    <style>
+        .block-container {{
+           padding-top: 0rem;
+        }}
+    </style>
+    """, unsafe_allow_html=True)
+    
+    st.title("{new_page_name}")
+    st.write("This is the {new_page_name} page.")
+'''
                                     )
                             # Insert into pages
                             try:
@@ -576,6 +606,7 @@ def admin_panel_page(cookies):
                         "User Profile",
                         "Admin Panel",
                         "Edit Page",
+                        "Code Snippets",
                     ):
                         continue  # Skip core pages
                     col1, col2, col3, col4, col5, col6, col7, col8 = st.columns(

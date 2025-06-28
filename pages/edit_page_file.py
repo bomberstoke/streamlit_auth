@@ -7,6 +7,22 @@ import time
 
 
 def edit_page_page(cookies):
+    # Add custom CSS for max-width
+    st.markdown("""
+    <style>
+    section[data-testid="stMain"] > div[data-testid="stMainBlockContainer"] {
+        max-width: 90%;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    st.markdown("""
+    <style>
+        .block-container {
+           padding-top: 0rem;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+    
     # Clear modal state if the dialog was closed with the X
     if "show_save_confirm_modal" in st.session_state and not st.session_state.get("save_confirm_active"):
         st.session_state.pop("show_save_confirm_modal", None)
@@ -23,7 +39,7 @@ def edit_page_page(cookies):
     # List .py files in the pages directory, excluding admin_panel.py, edit_page_file.py, login.py, register.py, dashboard.py, and user_profile.py
     page_files = [
         f for f in os.listdir("pages")
-        if f.endswith(".py") and f not in ("admin_panel.py", "edit_page_file.py", "login.py", "register.py", "dashboard.py", "user_profile.py")
+        if f.endswith(".py") and f not in ("admin_panel.py", "edit_page_file.py", "login.py", "register.py", "dashboard.py", "user_profile.py", "code_snippets.py")
     ]
     if not page_files:
         st.toast("No editable page files found.", icon="ℹ️")
@@ -93,7 +109,7 @@ def edit_page_page(cookies):
         st.session_state.pop("force_editor_reload")
         st.rerun()
 
-    col_save, col_spacer, col_cancel = st.columns([1, 3, 1])
+    col_save, col_spacer, col_cancel = st.columns([1, 7, 1])
     with col_save:
         save_clicked = st.button("Save Changes")
     with col_cancel:
