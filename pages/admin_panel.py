@@ -150,8 +150,15 @@ def admin_panel_page(cookies):
     st.markdown("""
     <style>
     section[data-testid="stMain"] > div[data-testid="stMainBlockContainer"] {
-        max-width: 1200px;
+        max-width: 90%;
     }
+    </style>
+    """, unsafe_allow_html=True)
+    st.markdown("""
+    <style>
+        .block-container {
+           padding-top: 0rem;
+        }
     </style>
     """, unsafe_allow_html=True)
     
