@@ -146,7 +146,7 @@ def confirm_delete_page_dialog(page_name):
 
 # Admin panel page for managing users and sessions
 def admin_panel_page(cookies):
-    # Add custom CSS for max-width
+    # Add custom CSS for max-width and padding
     st.markdown("""
     <style>
     section[data-testid="stMain"] > div[data-testid="stMainBlockContainer"] {

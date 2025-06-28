@@ -87,17 +87,12 @@ def init_db():
         )
     """)
     
-    # Clear existing data and insert fresh defaults
-    c.execute("DELETE FROM pages")
-    c.execute("DELETE FROM user_roles")
-    c.execute("DELETE FROM roles")
-    c.execute("DELETE FROM users")
-    c.execute("DELETE FROM code_snippets")
+    # Insert default roles if they don't exist
+    c.execute("SELECT COUNT(*) FROM roles")
+    if c.fetchone()[0] == 0:
+        c.executemany("INSERT INTO roles (role) VALUES (?)", [("admin",), ("user",)])
     
-    # Insert default roles
-    c.executemany("INSERT INTO roles (role) VALUES (?)", [("admin",), ("user",)])
-    
-    # Insert default pages
+    # Insert default pages if they don't exist
     default_pages = [
         ("Dashboard", "user", "📊", 1, "pages/dashboard.py", 1),
         ("User Profile", "user", "👤", 1, "pages/user_profile.py", 2),
@@ -106,17 +101,24 @@ def init_db():
         ("Admin Panel", "admin", "⚙️", 1, "pages/admin_panel.py", 5),
     ]
     
-    c.executemany(
-        "INSERT INTO pages (page_name, required_role, icon, enabled, file_path, menu_order) VALUES (?, ?, ?, ?, ?, ?)",
-        default_pages
-    )
+    for page_name, required_role, icon, enabled, file_path, menu_order in default_pages:
+        c.execute("SELECT COUNT(*) FROM pages WHERE page_name = ?", (page_name,))
+        if c.fetchone()[0] == 0:
+            c.execute(
+                "INSERT INTO pages (page_name, required_role, icon, enabled, file_path, menu_order) VALUES (?, ?, ?, ?, ?, ?)",
+                (page_name, required_role, icon, enabled, file_path, menu_order)
+            )
     
-    # Create admin user with password '1234'
-    hashed = bcrypt.hashpw("1234".encode(), bcrypt.gensalt())
-    c.execute("INSERT INTO users (username, password) VALUES (?, ?)", ("admin", hashed))
-    
-    # Assign admin role to admin user
-    c.execute("INSERT INTO user_roles (username, role) VALUES (?, ?)", ("admin", "admin"))
+    # Create admin user with password '1234' if it doesn't exist
+    c.execute("SELECT COUNT(*) FROM users WHERE username = ?", ("admin",))
+    if c.fetchone()[0] == 0:
+        hashed = bcrypt.hashpw("1234".encode(), bcrypt.gensalt())
+        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", ("admin", hashed))
+        
+        # Assign admin role to admin user if not already assigned
+        c.execute("SELECT COUNT(*) FROM user_roles WHERE username = ? AND role = ?", ("admin", "admin"))
+        if c.fetchone()[0] == 0:
+            c.execute("INSERT INTO user_roles (username, role) VALUES (?, ?)", ("admin", "admin"))
     
     conn.commit()
     conn.close()

@@ -64,8 +64,9 @@ def import_page_function(file_path, page_name):
 
 
 def main():
-    # Initialize the database (create tables if not exist)
-    init_db()
+    # Initialize the database only if it doesn't exist
+    if not os.path.exists("users.db"):
+        init_db()
 
     # Set up encrypted cookies manager for session handling
     cookies = EncryptedCookieManager(
