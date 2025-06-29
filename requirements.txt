@@ -1,0 +1,5 @@
+streamlit>=1.28.0
+streamlit-ace>=0.1.1
+streamlit-sortables>=0.3.0
+streamlit-cookies-manager>=0.2.0
+bcrypt>=4.0.0 

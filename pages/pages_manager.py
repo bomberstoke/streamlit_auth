@@ -151,7 +151,7 @@ def pages_manager_page(cookies):
     ]
     page_names = [page_name for page_name, _, _, _, _ in all_pages]
     # Create a unique key based on the current state to force refresh when status changes
-    status_hash = hash(tuple((name, enabled) for name, _, _, enabled, _ in all_pages))
+    status_hash = hash(tuple((name, enabled, icon, required_role) for name, required_role, icon, enabled, _ in all_pages))
     sortable_key = f"menu_order_sortable_{status_hash}"
     # Show sortable list centered in the container
     col_left, col_center, col_right = st.columns([1, 2, 1])
