@@ -62,6 +62,15 @@ def code_snippets_page(cookies):
 def edit_snippet_dialog(snippet, cookies):
     @st.dialog(f"Edit Snippet: {snippet['title']}")
     def modal():
+        st.markdown(
+            '''<style>
+            div[data-testid="stDialog"] > div > div {
+                max-width: 50% !important;
+                width: 90vw !important;
+            }
+            </style>''',
+            unsafe_allow_html=True,
+        )
         title = st.text_input("Title *", value=snippet['title'], key=f"edit_title_{snippet['id']}")
         description = st.text_area("Description", value=snippet['description'] or "", key=f"edit_description_{snippet['id']}")
         code = st_ace.st_ace(
@@ -77,13 +86,11 @@ def edit_snippet_dialog(snippet, cookies):
             wrap=True,
             auto_update=True,
         )
-        col1, col2, col3 = st.columns([1, 1, 1])
+        col1, col_spacer, col3 = st.columns([1, 6, 1])
         with col1:
-            update = st.button("Update Snippet", key=f"update_{snippet['id']}")
-        with col2:
-            delete = st.button("Delete Snippet", key=f"delete_{snippet['id']}")
+            update = st.button("Update", key=f"update_{snippet['id']}")
         with col3:
-            cancel = st.button("Cancel", key=f"cancel_{snippet['id']}")
+            delete = st.button("Delete", key=f"delete_{snippet['id']}")
         if update:
             if title and code:
                 success = update_snippet(snippet['id'], title, description, code)
@@ -108,10 +115,6 @@ def edit_snippet_dialog(snippet, cookies):
                     st.rerun()
                 else:
                     st.toast("Failed to delete snippet. Please try again.", icon="❌")
-        if cancel:
-            st.session_state.pop(f"edit_snippet_modal_{snippet['id']}", None)
-            st.session_state.pop(f"confirm_delete_{snippet['id']}", None)
-            st.rerun()
     modal()
 
 
@@ -205,6 +208,15 @@ def delete_snippet(snippet_id):
 def add_new_snippet_modal(cookies):
     @st.dialog("Add New Code Snippet")
     def modal():
+        st.markdown(
+            '''<style>
+            div[data-testid="stDialog"] > div > div {
+                max-width: 50% !important;
+                width: 90vw !important;
+            }
+            </style>''',
+            unsafe_allow_html=True,
+        )
         title_key = "add_snippet_title"
         desc_key = "add_snippet_description"
         code_key = "add_snippet_code"
