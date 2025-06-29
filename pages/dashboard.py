@@ -5,21 +5,6 @@ from auth import verify_session
 
 # Dashboard page for authenticated users
 def dashboard_page(cookies):
-    # Add custom CSS for max-width
-    st.markdown("""
-    <style>
-    section[data-testid="stMain"] > div[data-testid="stMainBlockContainer"] {
-        max-width: 90%;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    st.markdown("""
-    <style>
-        .block-container {
-           padding-top: 0rem;
-        }
-    </style>
-    """, unsafe_allow_html=True)
     username, roles = verify_session(cookies)
     if username:
         role_display = (

@@ -5,23 +5,6 @@ import time
 
 
 def code_snippets_page(cookies):
-    # Add custom CSS for max-width
-    st.markdown("""
-    <style>
-    section[data-testid="stMain"] > div[data-testid="stMainBlockContainer"] {
-        max-width: 90%;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    # Add custom CSS to reduce whitespace at top
-    st.markdown("""
-    <style>
-        .block-container {
-           padding-top: 0rem;
-        }
-    </style>
-    """, unsafe_allow_html=True)
-    
     username, roles = verify_session(cookies)
     if not username:
         st.error("Please login to access this page.")

@@ -64,6 +64,21 @@ def import_page_function(file_path, page_name):
 
 
 def main():
+    st.markdown(
+        """
+        <style>
+            /* Set Main Container to use 90% of the screen */
+            section[data-testid=\"stMain\"] > div[data-testid=\"stMainBlockContainer\"] {
+                max-width: 90%;
+            }
+            /* Reduce gap top of page */
+            .block-container {
+               padding-top: 0rem;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     # Initialize the database only if it doesn't exist
     if not os.path.exists("users.db"):
         init_db()

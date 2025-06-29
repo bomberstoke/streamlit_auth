@@ -7,22 +7,6 @@ import time
 
 
 def edit_page_page(cookies):
-    # Add custom CSS for max-width
-    st.markdown("""
-    <style>
-    section[data-testid="stMain"] > div[data-testid="stMainBlockContainer"] {
-        max-width: 90%;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    st.markdown("""
-    <style>
-        .block-container {
-           padding-top: 0rem;
-        }
-    </style>
-    """, unsafe_allow_html=True)
-    
     # Clear modal state if the dialog was closed with the X
     if "show_save_confirm_modal" in st.session_state and not st.session_state.get("save_confirm_active"):
         st.session_state.pop("show_save_confirm_modal", None)

@@ -6,27 +6,6 @@ import streamlit_sortables as sortables
 from auth import verify_session
 
 def pages_manager_page(cookies):
-    # Add custom CSS for max-width and padding
-    st.markdown(
-        """
-        <style>
-        section[data-testid=\"stMain\"] > div[data-testid=\"stMainBlockContainer\"] {
-            max-width: 90%;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        """
-        <style>
-            .block-container {
-               padding-top: 0rem;
-            }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
     username, roles = verify_session(cookies)
     if not username or ("pages" not in roles and "admin" not in roles):
         st.toast("Access denied: Pages or Admin role required.", icon="❌")
@@ -228,8 +207,10 @@ def pages_manager_page(cookies):
     st.session_state["edit_page_active"] = False
     st.session_state["confirm_delete_page_active"] = False
     st.session_state["show_add_page_modal"] = False
-    st.session_state.pop("edit_page", None)
-    st.session_state.pop("edit_page_active", None)
+    if "edit_page" in st.session_state:
+        del st.session_state["edit_page"]
+    if "edit_page_active" in st.session_state:
+        del st.session_state["edit_page_active"]
 
 # Helper to fetch roles from the database
 
@@ -242,7 +223,7 @@ def get_roles():
     return roles
 
 # Dialogs for editing and deleting pages (reuse from admin_panel.py)
-from pages.admin_panel import edit_page_dialog, confirm_delete_page_dialog
+from pages.admin_panel import confirm_delete_page_dialog
 
 # Modal dialog for adding a new page
 @st.dialog("Add New Page")
@@ -365,21 +346,6 @@ def add_new_page_modal(cookies):
                                 f'''import streamlit as st
 
 def {new_page_name.lower().replace(' ', '_')}_page(cookies):
-    # Add custom CSS for max-width and padding
-    st.markdown("""
-    <style>
-    section[data-testid=\"stMain\"] > div[data-testid=\"stMainBlockContainer\"] {{
-        max-width: 90%;
-    }}
-    </style>
-    """, unsafe_allow_html=True)
-    st.markdown("""
-    <style>
-        .block-container {{
-           padding-top: 0rem;
-        }}
-    </style>
-    """, unsafe_allow_html=True)
     
     st.title("{new_page_name}")
     st.write("This is the {new_page_name} page.")
@@ -427,4 +393,87 @@ def {new_page_name.lower().replace(' ', '_')}_page(cookies):
                         conn.close()
         if cancel_clicked:
             st.session_state["show_add_page_modal"] = False
+            st.rerun()
+
+@st.dialog("Edit Page")
+def edit_page_dialog(current_name, current_role, current_icon, current_enabled):
+    icon_options = [
+        "📄", "🏠", "👤", "🔐", "⚙️", "📊", "📅", "📝", "📦", "💡", "⭐", "🔔", "📁", "🛒", "🗂️", "🧑‍💼",
+    ]
+    all_roles = get_roles()
+    with st.form("edit_page_form"):
+        new_name = st.text_input("Page Name", value=current_name, key="edit_page_name")
+        new_icon = st.selectbox(
+            "Icon (emoji)",
+            icon_options,
+            index=(icon_options.index(current_icon) if current_icon in icon_options else 0),
+            key="edit_page_icon",
+        )
+        if all_roles:
+            current_role_index = 0
+            if current_role in all_roles:
+                current_role_index = all_roles.index(current_role)
+            new_required_role = st.selectbox(
+                "Required Role",
+                all_roles,
+                index=current_role_index,
+                key="edit_page_role",
+            )
+        else:
+            st.toast(
+                "No roles available. Please add a role first in the Manage Roles tab.",
+                icon="⚠️",
+            )
+            new_required_role = None
+        new_enabled = st.checkbox(
+            "Enabled", value=bool(current_enabled), key="edit_page_enabled"
+        )
+        col_save, col_spacer, col_cancel = st.columns([1, 3, 1])
+        with col_save:
+            submit_edit = st.form_submit_button("Save", disabled=not all_roles)
+        with col_spacer:
+            st.write("")
+        with col_cancel:
+            cancel_edit = st.form_submit_button("Cancel")
+        if submit_edit:
+            conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
+            c = conn.cursor()
+            c.execute(
+                "UPDATE pages SET page_name = ?, required_role = ?, icon = ?, enabled = ? WHERE page_name = ?",
+                (new_name, new_required_role, new_icon, int(new_enabled), current_name),
+            )
+            conn.commit()
+            conn.close()
+            if new_name and current_name and new_name != current_name:
+                old_file = f"pages/{str(current_name).lower().replace(' ', '_')}.py"
+                new_file = f"pages/{str(new_name).lower().replace(' ', '_')}.py"
+                if os.path.exists(old_file):
+                    os.rename(old_file, new_file)
+                    with open(new_file, "r") as f:
+                        content = f.read()
+                    old_func = f"def {str(current_name).lower().replace(' ', '_')}_page(cookies):"
+                    new_func = f"def {str(new_name).lower().replace(' ', '_')}_page(cookies):"
+                    if old_func in content:
+                        content = content.replace(old_func, new_func, 1)
+                        with open(new_file, "w") as f:
+                            f.write(content)
+                conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
+                c = conn.cursor()
+                c.execute(
+                    "UPDATE pages SET file_path = ? WHERE page_name = ?",
+                    (new_file, new_name),
+                )
+                conn.commit()
+                conn.close()
+            st.toast(f"Page '{new_name}' updated.", icon="✅")
+            if "edit_page" in st.session_state:
+                del st.session_state["edit_page"]
+            if "edit_page_active" in st.session_state:
+                del st.session_state["edit_page_active"]
+            st.rerun()
+        elif cancel_edit:
+            if "edit_page" in st.session_state:
+                del st.session_state["edit_page"]
+            if "edit_page_active" in st.session_state:
+                del st.session_state["edit_page_active"]
             st.rerun() 
