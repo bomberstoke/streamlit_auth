@@ -79,8 +79,6 @@ def init_db():
             title TEXT NOT NULL,
             description TEXT,
             code TEXT NOT NULL,
-            language TEXT NOT NULL,
-            tags TEXT,
             created_by TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

@@ -2,6 +2,7 @@ import sqlite3
 import streamlit as st
 from auth import verify_session
 import time
+import streamlit_ace as st_ace
 
 
 def code_snippets_page(cookies):
@@ -63,7 +64,19 @@ def edit_snippet_dialog(snippet, cookies):
     def modal():
         title = st.text_input("Title *", value=snippet['title'], key=f"edit_title_{snippet['id']}")
         description = st.text_area("Description", value=snippet['description'] or "", key=f"edit_description_{snippet['id']}")
-        code = st.text_area("Code *", value=snippet['code'], height=300, key=f"edit_code_{snippet['id']}")
+        code = st_ace.st_ace(
+            value=snippet['code'],
+            language="python",
+            theme="monokai",
+            key=f"edit_code_{snippet['id']}",
+            height=300,
+            font_size=13,
+            tab_size=4,
+            show_gutter=True,
+            show_print_margin=False,
+            wrap=True,
+            auto_update=True,
+        )
         col1, col2, col3 = st.columns([1, 1, 1])
         with col1:
             update = st.button("Update Snippet", key=f"update_{snippet['id']}")
@@ -73,7 +86,7 @@ def edit_snippet_dialog(snippet, cookies):
             cancel = st.button("Cancel", key=f"cancel_{snippet['id']}")
         if update:
             if title and code:
-                success = update_snippet(snippet['id'], title, description, code, "Python", None)
+                success = update_snippet(snippet['id'], title, description, code)
                 if success:
                     st.toast("Snippet updated successfully!", icon="✅")
                     st.session_state.pop(f"edit_snippet_modal_{snippet['id']}", None)
@@ -140,15 +153,15 @@ def get_snippets(search_query=""):
     return snippets
 
 
-def save_snippet(title, description, code, language, tags, created_by):
+def save_snippet(title, description, code, created_by):
     """Save a new snippet to the database"""
     try:
         conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
         c = conn.cursor()
         c.execute("""
-            INSERT INTO code_snippets (title, description, code, language, tags, created_by)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (title, description, code, language, tags, created_by))
+            INSERT INTO code_snippets (title, description, code, created_by)
+            VALUES (?, ?, ?, ?)
+        """, (title, description, code, created_by))
         conn.commit()
         conn.close()
         return True
@@ -157,16 +170,16 @@ def save_snippet(title, description, code, language, tags, created_by):
         return False
 
 
-def update_snippet(snippet_id, title, description, code, language, tags):
+def update_snippet(snippet_id, title, description, code):
     """Update an existing snippet"""
     try:
         conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
         c = conn.cursor()
         c.execute("""
             UPDATE code_snippets 
-            SET title = ?, description = ?, code = ?, language = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
+            SET title = ?, description = ?, code = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        """, (title, description, code, language, tags, snippet_id))
+        """, (title, description, code, snippet_id))
         conn.commit()
         conn.close()
         return True
@@ -197,7 +210,19 @@ def add_new_snippet_modal(cookies):
         code_key = "add_snippet_code"
         title = st.text_input("Title *", placeholder="Enter snippet title", key=title_key)
         description = st.text_area("Description", placeholder="Optional description of what this snippet does", key=desc_key)
-        code = st.text_area("Code *", height=300, placeholder="Paste your code here...", key=code_key)
+        code = st_ace.st_ace(
+            value=st.session_state.get(code_key, ""),
+            language="python",
+            theme="monokai",
+            key=code_key,
+            height=300,
+            font_size=13,
+            tab_size=4,
+            show_gutter=True,
+            show_print_margin=False,
+            wrap=True,
+            auto_update=True,
+        )
         col1, col_spacer, col3 = st.columns([1, 4, 1])
         with col1:
             submit = st.button("Save", key="save_new_snippet")
@@ -206,7 +231,7 @@ def add_new_snippet_modal(cookies):
         if submit:
             if title and code:
                 username, _ = verify_session(cookies)
-                success = save_snippet(title, description, code, "Python", None, username)
+                success = save_snippet(title, description, code, username)
                 if success:
                     st.toast("Snippet saved successfully!", icon="✅")
                     for k in [title_key, desc_key, code_key]:
