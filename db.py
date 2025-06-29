@@ -90,7 +90,7 @@ def init_db():
     # Insert default roles if they don't exist
     c.execute("SELECT COUNT(*) FROM roles")
     if c.fetchone()[0] == 0:
-        c.executemany("INSERT INTO roles (role) VALUES (?)", [("admin",), ("user",)])
+        c.executemany("INSERT INTO roles (role) VALUES (?)", [("admin",), ("user",), ("pages",)])
     
     # Insert default pages if they don't exist
     default_pages = [
@@ -98,7 +98,8 @@ def init_db():
         ("User Profile", "user", "👤", 1, "pages/user_profile.py", 2),
         ("Edit Page", "admin", "✏️", 1, "pages/edit_page_file.py", 3),
         ("Code Snippets", "admin", "💻", 1, "pages/code_snippets.py", 4),
-        ("Admin Panel", "admin", "⚙️", 1, "pages/admin_panel.py", 5),
+        ("Pages Manager", "pages", "📄", 1, "pages/pages_manager.py", 5),
+        ("Admin Panel", "admin", "⚙️", 1, "pages/admin_panel.py", 6),
     ]
     
     for page_name, required_role, icon, enabled, file_path, menu_order in default_pages:

@@ -1,0 +1,430 @@
+import os
+import sqlite3
+import time
+import streamlit as st
+import streamlit_sortables as sortables
+from auth import verify_session
+
+def pages_manager_page(cookies):
+    # Add custom CSS for max-width and padding
+    st.markdown(
+        """
+        <style>
+        section[data-testid=\"stMain\"] > div[data-testid=\"stMainBlockContainer\"] {
+            max-width: 90%;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        """
+        <style>
+            .block-container {
+               padding-top: 0rem;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    username, roles = verify_session(cookies)
+    if not username or ("pages" not in roles and "admin" not in roles):
+        st.toast("Access denied: Pages or Admin role required.", icon="❌")
+        st.stop()
+    st.title("Pages Manager")
+    st.write("Create, view, and organize dynamic pages.")
+    
+    # Always clear the add page modal state at the start of the page
+    if "_add_page_modal_opened" not in st.session_state:
+        st.session_state["show_add_page_modal"] = False
+    st.session_state.pop("_add_page_modal_opened", None)
+    
+    # Add New Page Button
+    if st.button("➕ Add New Page", key="open_add_page_modal"):
+        st.session_state["show_add_page_modal"] = True
+        st.session_state["_add_page_modal_opened"] = True
+    
+    # Modal dialog for adding a new page
+    if st.session_state.get("show_add_page_modal"):
+        add_new_page_modal(cookies)
+    
+    # --- View Pages Section ---
+    st.header("View Pages")
+    all_roles = []
+    conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
+    c = conn.cursor()
+    c.execute(
+        "SELECT page_name, required_role, icon, enabled, file_path, menu_order FROM pages ORDER BY menu_order, page_name"
+    )
+    all_pages = c.fetchall()
+    conn.close()
+    # Add column headings
+    header1, header2, header3, header4, header5, header6, header7, header8 = (
+        st.columns([3, 3, 2, 2, 2, 4, 2, 3])
+    )
+    with header1:
+        st.markdown("**Page Name**")
+    with header2:
+        st.markdown("**Role**")
+    with header3:
+        st.markdown("**Icon**")
+    with header4:
+        st.markdown("**Status**")
+    with header5:
+        st.markdown("**Order**")
+    with header6:
+        st.markdown("**File Path**")
+    with header7:
+        st.markdown("**Edit**")
+    with header8:
+        st.markdown("**Delete**")
+    for page_name, required_role, icon, enabled, file_path, menu_order in all_pages:
+        if page_name in (
+            "Dashboard",
+            "User Profile",
+            "Admin Panel",
+            "Edit Page",
+            "Code Snippets",
+            "Pages Manager",
+        ):
+            continue  # Skip core pages and Pages Manager itself
+        col1, col2, col3, col4, col5, col6, col7, col8 = st.columns(
+            [3, 3, 2, 2, 2, 4, 2, 3]
+        )
+        with col1:
+            st.write(page_name)
+        with col2:
+            st.write(required_role)
+        with col3:
+            st.write(icon)
+        with col4:
+            status_icon = "✅" if enabled else "❌"
+            st.write(status_icon)
+        with col5:
+            st.write(menu_order or "N/A")
+        with col6:
+            # Remove "pages/" prefix from file path for cleaner display
+            clean_file_path = file_path.replace("pages/", "") if file_path else file_path
+            st.write(clean_file_path)
+        with col7:
+            if st.button(f"Edit", key=f"edit_page_{page_name}"):
+                if "confirm_delete_page" in st.session_state:
+                    del st.session_state["confirm_delete_page"]
+                st.session_state["edit_page"] = page_name
+                st.session_state["edit_page_active"] = True
+        with col8:
+            delete_key = f"del_page_{page_name}"
+            if st.button(f"Delete", key=delete_key):
+                st.session_state["confirm_delete_page"] = page_name
+
+    # Confirmation dialog for deleting a page
+    confirm_delete_page = st.session_state.get("confirm_delete_page")
+    if confirm_delete_page:
+        # Set active flag when dialog is open
+        st.session_state["confirm_delete_page_active"] = True
+        confirm_delete_page_dialog(confirm_delete_page)
+    else:
+        # Call the dialog if edit_page is set
+        edit_page = st.session_state.get("edit_page")
+        if edit_page:
+            # Set active flag when dialog is open
+            st.session_state["edit_page_active"] = True
+            # Fetch current values
+            conn = sqlite3.connect(
+                "users.db", detect_types=sqlite3.PARSE_DECLTYPES
+            )
+            c = conn.cursor()
+            c.execute(
+                "SELECT page_name, required_role, icon, enabled FROM pages WHERE page_name = ?",
+                (edit_page,),
+            )
+            row = c.fetchone()
+            conn.close()
+            if row:
+                (
+                    current_name,
+                    current_role,
+                    current_icon,
+                    current_enabled,
+                ) = row
+                edit_page_dialog(
+                    current_name,
+                    current_role,
+                    current_icon,
+                    current_enabled,
+                )
+
+    # --- Menu Order Section ---
+    st.header("Menu Order")
+    st.write("Drag and drop to reorder pages in the menu.")
+    # Fetch all pages ordered by current menu_order
+    conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
+    c = conn.cursor()
+    c.execute(
+        "SELECT page_name, required_role, icon, enabled, menu_order FROM pages ORDER BY menu_order, page_name"
+    )
+    all_pages = c.fetchall()
+    conn.close()
+    # Prepare items for sortables
+    sortable_items = [
+        f"{icon} {page_name} ({required_role}) {'✅' if enabled else '❌'}"
+        for page_name, required_role, icon, enabled, _ in all_pages
+    ]
+    page_names = [page_name for page_name, _, _, _, _ in all_pages]
+    # Create a unique key based on the current state to force refresh when status changes
+    status_hash = hash(tuple((name, enabled) for name, _, _, enabled, _ in all_pages))
+    sortable_key = f"menu_order_sortable_{status_hash}"
+    # Show sortable list centered in the container
+    col_left, col_center, col_right = st.columns([1, 2, 1])
+    with col_center:
+        new_ordered_items = sortables.sort_items(
+            sortable_items,
+            direction="vertical",
+            key=sortable_key,
+        )
+    # (col_left and col_right are left empty for centering effect)
+    # Check if the order has changed
+    if new_ordered_items != sortable_items:
+        # Map new_ordered_items to page_names by their new order
+        new_page_order = []
+        for item in new_ordered_items:
+            # Find the original index by matching the page name and role, ignoring status
+            for i, original_item in enumerate(sortable_items):
+                # Extract page name and role from both items (ignore status)
+                if "(" in item and ")" in item:
+                    item_parts = item.split("(")[0].strip()
+                    item_role = item.split("(")[1].split(")")[0].strip()
+                else:
+                    continue
+                if "(" in original_item and ")" in original_item:
+                    original_parts = original_item.split("(")[0].strip()
+                    original_role = original_item.split("(")[1].split(")")[0].strip()
+                else:
+                    continue
+                if item_parts == original_parts and item_role == original_role:
+                    new_page_order.append(page_names[i])
+                    break
+            else:
+                # Fallback: try to find by page name only
+                for i, page_name in enumerate(page_names):
+                    if page_name in item:
+                        new_page_order.append(page_name)
+                        break
+        # Update the database with new order
+        conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
+        c = conn.cursor()
+        for idx, page_name in enumerate(new_page_order, start=1):
+            c.execute(
+                "UPDATE pages SET menu_order = ? WHERE page_name = ?",
+                (idx, page_name),
+            )
+        conn.commit()
+        conn.close()
+        st.toast("Menu order updated!", icon="✅")
+        time.sleep(1)
+        st.rerun()
+
+    # Always reset dialog active flags at the end of the function
+    st.session_state["edit_page_active"] = False
+    st.session_state["confirm_delete_page_active"] = False
+    st.session_state["show_add_page_modal"] = False
+    st.session_state.pop("edit_page", None)
+    st.session_state.pop("edit_page_active", None)
+
+# Helper to fetch roles from the database
+
+def get_roles():
+    conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
+    c = conn.cursor()
+    c.execute("SELECT role FROM roles")
+    roles = [row[0] for row in c.fetchall()]
+    conn.close()
+    return roles
+
+# Dialogs for editing and deleting pages (reuse from admin_panel.py)
+from pages.admin_panel import edit_page_dialog, confirm_delete_page_dialog
+
+# Modal dialog for adding a new page
+@st.dialog("Add New Page")
+def add_new_page_modal(cookies):
+    all_roles = get_roles()
+    with st.form("add_page_form"):
+        new_page_name = st.text_input("Page Name", key="add_page_name")
+        icon_options = [
+            "📄",
+            "🏠",
+            "👤",
+            "🔐",
+            "⚙️",
+            "📊",
+            "📅",
+            "📝",
+            "📦",
+            "💡",
+            "⭐",
+            "🔔",
+            "📁",
+            "🛒",
+            "🗂️",
+            "🧑‍💼",
+        ]
+        new_icon = st.selectbox(
+            "Icon (emoji)", icon_options, index=0, key="add_page_icon"
+        )
+        if all_roles:
+            new_required_role = st.selectbox(
+                "Required Role", all_roles, key="add_page_role"
+            )
+        else:
+            st.toast(
+                "No roles available. Please add a role first in the Manage Roles tab.",
+                icon="⚠️",
+            )
+            new_required_role = None
+        new_role_input = st.text_input(
+            "Or add a new role", key="add_page_new_role"
+        )
+        new_enabled = st.checkbox(
+            "Enabled", value=True, key="add_page_enabled"
+        )
+        col_add, col_spacer, col_cancel = st.columns([1, 3, 1])
+        with col_add:
+            add_page_submit = st.form_submit_button("Add")
+        with col_cancel:
+            cancel_clicked = st.form_submit_button("Cancel")
+        if add_page_submit:
+            if not new_page_name or not new_page_name.strip():
+                st.toast("Please enter a page name.", icon="⚠️")
+            elif not all_roles:
+                st.toast(
+                    "No roles available. Please add a role first in the Manage Roles tab.",
+                    icon="⚠️",
+                )
+            else:
+                # Determine the role to use
+                role_to_use = new_required_role
+                if new_role_input:
+                    # Add new role if it doesn't exist
+                    if new_role_input not in all_roles:
+                        try:
+                            conn = sqlite3.connect(
+                                "users.db", detect_types=sqlite3.PARSE_DECLTYPES
+                            )
+                            c = conn.cursor()
+                            c.execute(
+                                "INSERT INTO roles (role) VALUES (?)",
+                                (new_role_input,),
+                            )
+                            conn.commit()
+                            conn.close()
+                            st.toast(
+                                f"Role '{new_role_input}' added.", icon="✅"
+                            )
+                            role_to_use = new_role_input
+                            all_roles.append(new_role_input)
+                        except sqlite3.IntegrityError:
+                            st.toast(
+                                f"Role '{new_role_input}' already exists.",
+                                icon="⚠️",
+                            )
+                            role_to_use = new_role_input
+                    else:
+                        st.toast(
+                            f"Role '{new_role_input}' already exists. Using it as required role.",
+                            icon="ℹ️",
+                        )
+                        role_to_use = new_role_input
+                # Generate file path
+                file_path = (
+                    f"pages/{new_page_name.lower().replace(' ', '_')}.py"
+                )
+                # Get the next available menu order
+                conn = sqlite3.connect(
+                    "users.db", detect_types=sqlite3.PARSE_DECLTYPES
+                )
+                c = conn.cursor()
+                c.execute("SELECT MAX(menu_order) FROM pages")
+                max_order = c.fetchone()[0]
+                next_order = (max_order or 0) + 1
+                # Check for duplicate page name
+                c.execute(
+                    "SELECT COUNT(*) FROM pages WHERE page_name = ?",
+                    (new_page_name,),
+                )
+                if c.fetchone()[0] > 0:
+                    st.toast(
+                        f"A page with the name '{new_page_name}' already exists.",
+                        icon="⚠️",
+                    )
+                    conn.close()
+                else:
+                    # Create the file with a basic template if it doesn't exist
+                    if not os.path.exists(file_path):
+                        with open(file_path, "w") as f:
+                            f.write(
+                                f'''import streamlit as st
+
+def {new_page_name.lower().replace(' ', '_')}_page(cookies):
+    # Add custom CSS for max-width and padding
+    st.markdown("""
+    <style>
+    section[data-testid=\"stMain\"] > div[data-testid=\"stMainBlockContainer\"] {{
+        max-width: 90%;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+    st.markdown("""
+    <style>
+        .block-container {{
+           padding-top: 0rem;
+        }}
+    </style>
+    """, unsafe_allow_html=True)
+    
+    st.title("{new_page_name}")
+    st.write("This is the {new_page_name} page.")
+'''
+                            )
+                    # Insert into pages
+                    try:
+                        c.execute(
+                            "INSERT INTO pages (page_name, required_role, icon, enabled, file_path, menu_order) VALUES (?, ?, ?, ?, ?, ?)",
+                            (
+                                new_page_name,
+                                role_to_use,
+                                new_icon,
+                                int(new_enabled),
+                                file_path,
+                                next_order,
+                            ),
+                        )
+                        conn.commit()
+                        
+                        # After adding the new page, enforce menu order:
+                        # 1. Get all pages except Pages Manager and Admin Panel
+                        c.execute("SELECT page_name FROM pages WHERE page_name NOT IN ('Admin Panel', 'Pages Manager') ORDER BY menu_order, page_name")
+                        normal_pages = [row[0] for row in c.fetchall()]
+                        # 2. Set their menu_order from 1 to N
+                        for idx, page_name in enumerate(normal_pages, start=1):
+                            c.execute("UPDATE pages SET menu_order = ? WHERE page_name = ?", (idx, page_name))
+                        # 3. Set Pages Manager to second to last, Admin Panel to last
+                        c.execute("SELECT COUNT(*) FROM pages")
+                        total_pages = c.fetchone()[0]
+                        c.execute("UPDATE pages SET menu_order = ? WHERE page_name = 'Pages Manager'", (total_pages - 1,))
+                        c.execute("UPDATE pages SET menu_order = ? WHERE page_name = 'Admin Panel'", (total_pages,))
+                        conn.commit()
+                        
+                        st.toast(f"Page '{new_page_name}' created.", icon="✅")
+                        conn.close()
+                        time.sleep(2)
+                        st.session_state["show_add_page_modal"] = False
+                        st.rerun()
+                    except sqlite3.IntegrityError:
+                        st.toast(
+                            f"A page with the name '{new_page_name}' already exists.",
+                            icon="⚠️",
+                        )
+                        conn.close()
+        if cancel_clicked:
+            st.session_state["show_add_page_modal"] = False
+            st.rerun() 

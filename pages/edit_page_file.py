@@ -36,10 +36,10 @@ def edit_page_page(cookies):
     st.title("Edit Page File")
     st.write("Select a page file to edit its contents. Changes are saved directly to the file.")
 
-    # List .py files in the pages directory, excluding admin_panel.py, edit_page_file.py, login.py, register.py, dashboard.py, and user_profile.py
+    # List .py files in the pages directory, excluding admin_panel.py, edit_page_file.py, login.py, register.py, dashboard.py, user_profile.py, code_snippets.py, and pages_manager.py
     page_files = [
         f for f in os.listdir("pages")
-        if f.endswith(".py") and f not in ("admin_panel.py", "edit_page_file.py", "login.py", "register.py", "dashboard.py", "user_profile.py", "code_snippets.py")
+        if f.endswith(".py") and f not in ("admin_panel.py", "edit_page_file.py", "login.py", "register.py", "dashboard.py", "user_profile.py", "code_snippets.py", "pages_manager.py")
     ]
     if not page_files:
         st.toast("No editable page files found.", icon="ℹ️")
