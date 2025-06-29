@@ -367,15 +367,17 @@ def {new_page_name.lower().replace(' ', '_')}_page(cookies):
                         conn.commit()
                         
                         # After adding the new page, enforce menu order:
-                        # 1. Get all pages except Pages Manager and Admin Panel
-                        c.execute("SELECT page_name FROM pages WHERE page_name NOT IN ('Admin Panel', 'Pages Manager') ORDER BY menu_order, page_name")
+                        # 1. Get all pages except Pages Manager, Admin Panel, Code Snippets, and Edit Page
+                        c.execute("SELECT page_name FROM pages WHERE page_name NOT IN ('Admin Panel', 'Pages Manager', 'Code Snippets', 'Edit Page') ORDER BY menu_order, page_name")
                         normal_pages = [row[0] for row in c.fetchall()]
                         # 2. Set their menu_order from 1 to N
                         for idx, page_name in enumerate(normal_pages, start=1):
                             c.execute("UPDATE pages SET menu_order = ? WHERE page_name = ?", (idx, page_name))
-                        # 3. Set Pages Manager to second to last, Admin Panel to last
+                        # 3. Set Edit Page to fourth from last, Code Snippets to third from last, Pages Manager to second to last, Admin Panel to last
                         c.execute("SELECT COUNT(*) FROM pages")
                         total_pages = c.fetchone()[0]
+                        c.execute("UPDATE pages SET menu_order = ? WHERE page_name = 'Edit Page'", (total_pages - 3,))
+                        c.execute("UPDATE pages SET menu_order = ? WHERE page_name = 'Code Snippets'", (total_pages - 2,))
                         c.execute("UPDATE pages SET menu_order = ? WHERE page_name = 'Pages Manager'", (total_pages - 1,))
                         c.execute("UPDATE pages SET menu_order = ? WHERE page_name = 'Admin Panel'", (total_pages,))
                         conn.commit()
