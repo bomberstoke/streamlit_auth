@@ -1,45 +1,10 @@
-import os
 import sqlite3
 import time
 
 import bcrypt
 import streamlit as st
-import streamlit_sortables as sortables
 
 from auth import verify_session
-
-
-# Dialog function for confirming page deletion
-@st.dialog("Confirm Delete Page")
-def confirm_delete_page_dialog(page_name):
-    st.warning(
-        f"Are you sure you want to delete the page '{page_name}'? This action cannot be undone."
-    )
-    col_a, col_b, col_c = st.columns([1, 3, 1])
-    with col_a:
-        if st.button("Delete", key="confirm_delete_yes"):
-            # Remove from DB and delete file
-            conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
-            c = conn.cursor()
-            c.execute("SELECT file_path FROM pages WHERE page_name = ?", (page_name,))
-            row = c.fetchone()
-            c.execute("DELETE FROM pages WHERE page_name = ?", (page_name,))
-            conn.commit()
-            conn.close()
-            if row and row[0] and os.path.exists(row[0]):
-                os.remove(row[0])
-            st.toast(f"Page '{page_name}' deleted.", icon="✅")
-            del st.session_state["confirm_delete_page"]
-            time.sleep(2)
-            st.rerun()
-    with col_b:
-        st.write("")
-    with col_c:
-        if st.button("Cancel", key="confirm_delete_cancel"):
-            del st.session_state["confirm_delete_page"]
-            if "edit_page" in st.session_state:
-                del st.session_state["edit_page"]
-            st.rerun()
 
 
 # Admin panel page for managing users and sessions

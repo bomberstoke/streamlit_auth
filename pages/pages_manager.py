@@ -224,7 +224,7 @@ def get_roles():
     conn.close()
     return roles
 
-# Dialog for confirming page deletion (reverted to original)
+# Dialog function for confirming page deletion (moved from admin_panel.py)
 @st.dialog("Confirm Delete Page")
 def confirm_delete_page_dialog(page_name):
     st.warning(
