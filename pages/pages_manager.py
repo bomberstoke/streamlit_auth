@@ -88,7 +88,7 @@ def pages_manager_page(cookies):
         with col7:
             if st.button(f"Edit", key=f"edit_page_{page_name}"):
                 if "confirm_delete_page" in st.session_state:
-                    del st.session_state["confirm_delete_page"]
+                    st.session_state.pop("confirm_delete_page", None)
                 st.session_state["edit_page"] = page_name
                 st.session_state["edit_page_active"] = True
         with col8:
@@ -211,6 +211,8 @@ def pages_manager_page(cookies):
         del st.session_state["edit_page"]
     if "edit_page_active" in st.session_state:
         del st.session_state["edit_page_active"]
+    st.session_state.pop("confirm_delete_page", None)
+    st.session_state.pop("confirm_delete_page_active", None)
 
 # Helper to fetch roles from the database
 
@@ -222,8 +224,37 @@ def get_roles():
     conn.close()
     return roles
 
-# Dialogs for editing and deleting pages (reuse from admin_panel.py)
-from pages.admin_panel import confirm_delete_page_dialog
+# Dialog for confirming page deletion (reverted to original)
+@st.dialog("Confirm Delete Page")
+def confirm_delete_page_dialog(page_name):
+    st.warning(
+        f"Are you sure you want to delete the page '{page_name}'? This action cannot be undone."
+    )
+    col_a, col_b, col_c = st.columns([1, 3, 1])
+    with col_a:
+        if st.button("Delete"):
+            # Remove from DB and delete file
+            conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
+            c = conn.cursor()
+            c.execute("SELECT file_path FROM pages WHERE page_name = ?", (page_name,))
+            row = c.fetchone()
+            c.execute("DELETE FROM pages WHERE page_name = ?", (page_name,))
+            conn.commit()
+            conn.close()
+            if row and row[0] and os.path.exists(row[0]):
+                os.remove(row[0])
+            st.toast(f"Page '{page_name}' deleted.", icon="✅")
+            st.session_state.pop("confirm_delete_page", None)
+            time.sleep(2)
+            st.rerun()
+    with col_b:
+        st.write("")
+    with col_c:
+        if st.button("Cancel"):
+            st.session_state.pop("confirm_delete_page", None)
+            if "edit_page" in st.session_state:
+                del st.session_state["edit_page"]
+            st.rerun()
 
 # Modal dialog for adding a new page
 @st.dialog("Add New Page")
@@ -344,11 +375,13 @@ def add_new_page_modal(cookies):
                         with open(file_path, "w") as f:
                             f.write(
                                 f'''import streamlit as st
+from auth import verify_session
 
 def {new_page_name.lower().replace(' ', '_')}_page(cookies):
-    
+    username, _ = verify_session(cookies)
     st.title("{new_page_name}")
     st.write("This is the {new_page_name} page.")
+    st.write(f"Current user: {{username}}")
 '''
                             )
                     # Insert into pages
