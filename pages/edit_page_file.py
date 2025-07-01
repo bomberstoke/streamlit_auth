@@ -36,7 +36,7 @@ def edit_page_page(cookies):
     reload_count_key = ace_key + "_reload_count"
 
     # Load file content
-    with open(file_path, "r") as f:
+    with open(file_path, "r", encoding="utf-8") as f:
         file_content = f.read()
 
     # Always initialize the Ace editor value, saved value, and reload counter in session_state if missing
@@ -123,7 +123,7 @@ def save_confirm_dialog(selected_file, file_path, edited_content, ace_key, saved
     with col_confirm:
         if st.button("Save", key="confirm_save_changes"):
             try:
-                with open(file_path, "w") as f:
+                with open(file_path, "w", encoding="utf-8") as f:
                     f.write(edited_content)
                 st.toast(f"Changes saved to {selected_file}.", icon="✅")
                 st.session_state[ace_key] = edited_content
