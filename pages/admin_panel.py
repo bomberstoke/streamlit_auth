@@ -32,8 +32,8 @@ def admin_panel_page(cookies):
 
             # Create tabs for each admin section
             tabs = st.tabs([
-                "Users",
-                "User Sessions",
+                "Manage Users",
+                "Manage Sessions",
                 "Manage Roles",
                 "Manage Icons"
             ])
