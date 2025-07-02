@@ -260,28 +260,16 @@ def confirm_delete_page_dialog(page_name):
 @st.dialog("Add New Page")
 def add_new_page_modal(cookies):
     all_roles = get_roles()
+    # Fetch icon options from the database, ordered by icon_order
+    conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
+    c = conn.cursor()
+    c.execute("SELECT icon FROM icons ORDER BY icon_order, icon")
+    icon_options = [row[0] for row in c.fetchall()]
+    conn.close()
     with st.form("add_page_form"):
         new_page_name = st.text_input("Page Name", key="add_page_name")
-        icon_options = [
-            "📄",
-            "🏠",
-            "👤",
-            "🔐",
-            "⚙️",
-            "📊",
-            "📅",
-            "📝",
-            "📦",
-            "💡",
-            "⭐",
-            "🔔",
-            "📁",
-            "🛒",
-            "🗂️",
-            "🧑‍💼",
-        ]
         new_icon = st.selectbox(
-            "Icon (emoji)", icon_options, index=0, key="add_page_icon"
+            "Icon (emoji)", icon_options, index=0 if icon_options else None, key="add_page_icon"
         )
         if all_roles:
             new_required_role = st.selectbox(
@@ -432,16 +420,19 @@ def {new_page_name.lower().replace(' ', '_')}_page(cookies):
 
 @st.dialog("Edit Page")
 def edit_page_dialog(current_name, current_role, current_icon, current_enabled):
-    icon_options = [
-        "📄", "🏠", "👤", "🔐", "⚙️", "📊", "📅", "📝", "📦", "💡", "⭐", "🔔", "📁", "🛒", "🗂️", "🧑‍💼",
-    ]
+    # Fetch icon options from the database, ordered by icon_order
+    conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
+    c = conn.cursor()
+    c.execute("SELECT icon FROM icons ORDER BY icon_order, icon")
+    icon_options = [row[0] for row in c.fetchall()]
+    conn.close()
     all_roles = get_roles()
     with st.form("edit_page_form"):
         new_name = st.text_input("Page Name", value=current_name, key="edit_page_name")
         new_icon = st.selectbox(
             "Icon (emoji)",
             icon_options,
-            index=(icon_options.index(current_icon) if current_icon in icon_options else 0),
+            index=(icon_options.index(current_icon) if current_icon in icon_options else 0) if icon_options else None,
             key="edit_page_icon",
         )
         if all_roles:

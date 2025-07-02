@@ -85,6 +85,14 @@ def init_db():
         )
     """)
     
+    # Create icons table for user-manageable page icons (with icon_order)
+    c.execute(
+        """CREATE TABLE IF NOT EXISTS icons (
+            icon TEXT PRIMARY KEY,
+            icon_order INTEGER DEFAULT 0
+        )"""
+    )
+    
     # Insert default roles if they don't exist
     c.execute("SELECT COUNT(*) FROM roles")
     if c.fetchone()[0] == 0:
@@ -107,6 +115,15 @@ def init_db():
                 "INSERT INTO pages (page_name, required_role, icon, enabled, file_path, menu_order) VALUES (?, ?, ?, ?, ?, ?)",
                 (page_name, required_role, icon, enabled, file_path, menu_order)
             )
+    
+    # Insert default icons if they don't exist, with order
+    default_icons = [
+        ("📄", 1), ("🏠", 2), ("👤", 3), ("🔐", 4), ("⚙️", 5), ("📊", 6), ("📅", 7), ("📝", 8),
+        ("📦", 9), ("💡", 10), ("⭐", 11), ("🔔", 12), ("📁", 13), ("🛒", 14), ("🗂️", 15), ("🧑‍💼", 16)
+    ]
+    c.execute("SELECT COUNT(*) FROM icons")
+    if c.fetchone()[0] == 0:
+        c.executemany("INSERT OR IGNORE INTO icons (icon, icon_order) VALUES (?, ?)", default_icons)
     
     # Create admin user with password '1234' if it doesn't exist
     c.execute("SELECT COUNT(*) FROM users WHERE username = ?", ("admin",))

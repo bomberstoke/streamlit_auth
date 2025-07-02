@@ -1,8 +1,8 @@
 import sqlite3
 import time
-
 import bcrypt
 import streamlit as st
+import streamlit_sortables as sortables
 
 from auth import verify_session
 
@@ -34,7 +34,8 @@ def admin_panel_page(cookies):
             tabs = st.tabs([
                 "Users",
                 "User Sessions",
-                "Manage Roles"
+                "Manage Roles",
+                "Manage Icons"
             ])
 
             # Users tab
@@ -280,6 +281,82 @@ def admin_panel_page(cookies):
                                     st.rerun()
                         else:
                             st.write("")
+
+            # Manage Icons tab
+            with tabs[3]:
+                st.subheader("Manage Icons")
+                conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
+                c = conn.cursor()
+                c.execute("SELECT icon, icon_order FROM icons ORDER BY icon_order, icon")
+                icons = c.fetchall()
+                conn.close()
+                icon_list = [icon for icon, _ in icons]
+                st.write("**Available Icons:** (drag to reorder)")
+                # Drag-and-drop reorder UI
+                sortable_key = f"icon_order_sortable_{len(icon_list)}"
+                new_icon_list = sortables.sort_items(icon_list, direction="horizontal", key=sortable_key)
+                # Only update order if not just after adding an icon
+                if st.session_state.get("icon_added"):
+                    st.session_state.pop("icon_added")
+                elif new_icon_list != icon_list:
+                    # Update icon_order in DB
+                    conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
+                    c = conn.cursor()
+                    for idx, icon in enumerate(new_icon_list, start=1):
+                        c.execute("UPDATE icons SET icon_order = ? WHERE icon = ?", (idx, icon))
+                    conn.commit()
+                    conn.close()
+                    st.toast("Icon order updated!", icon="✅")
+                    time.sleep(1)
+                    st.rerun()
+                icon_cols = st.columns(8)
+                for idx, icon in enumerate(new_icon_list):
+                    with icon_cols[idx % 8]:
+                        st.write(icon)
+                        # Check if icon is in use
+                        conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
+                        c = conn.cursor()
+                        c.execute("SELECT COUNT(*) FROM pages WHERE icon = ?", (icon,))
+                        in_use = c.fetchone()[0] > 0
+                        conn.close()
+                        if in_use:
+                            st.button("Delete", key=f"del_icon_{icon}", disabled=True, help="Icon is in use by a page.")
+                        else:
+                            if st.button("Delete", key=f"del_icon_{icon}"):
+                                conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
+                                c = conn.cursor()
+                                c.execute("DELETE FROM icons WHERE icon = ?", (icon,))
+                                conn.commit()
+                                conn.close()
+                                st.toast(f"Icon '{icon}' deleted.", icon="✅")
+                                time.sleep(1)
+                                st.rerun()
+                st.write("")
+                with st.form("add_icon_form"):
+                    new_icon = st.text_input("Add new icon (emoji or Unicode)", key="add_icon_input")
+                    add_icon_submit = st.form_submit_button("Add Icon")
+                    if add_icon_submit:
+                        if not new_icon or not new_icon.strip():
+                            st.toast("Please enter an icon.", icon="⚠️")
+                        elif new_icon in new_icon_list:
+                            st.toast("Icon already exists.", icon="⚠️")
+                        else:
+                            try:
+                                conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
+                                c = conn.cursor()
+                                # Get next icon_order
+                                c.execute("SELECT MAX(icon_order) FROM icons")
+                                max_order = c.fetchone()[0] or 0
+                                c.execute("INSERT INTO icons (icon, icon_order) VALUES (?, ?)", (new_icon, max_order + 1))
+                                conn.commit()
+                                conn.close()
+                                st.toast(f"Icon '{new_icon}' added.", icon="✅")
+                                st.session_state["icon_added"] = True
+                                # No need to clear session state for dynamic key
+                                time.sleep(1)
+                                st.rerun()
+                            except sqlite3.IntegrityError:
+                                st.toast("Icon already exists.", icon="⚠️")
 
         else:
             st.toast("Access denied: Admin role required.", icon="❌")
