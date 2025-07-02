@@ -26,7 +26,7 @@ def admin_panel_page(cookies):
             # Fetch all users from the database
             conn = sqlite3.connect("users.db", detect_types=sqlite3.PARSE_DECLTYPES)
             c = conn.cursor()
-            c.execute("SELECT username FROM users")
+            c.execute("SELECT username FROM users ORDER BY LOWER(username) ASC")
             users = [(row[0],) for row in c.fetchall()]
             conn.close()
 

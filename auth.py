@@ -11,7 +11,7 @@ def register_user(username, password, role="user"):
     try:
         hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
         c.execute(
-            "INSERT INTO users (username, password) VALUES (?, ?)", (username, hashed)
+            "INSERT INTO users (username, password) VALUES (?, ?)", (username.lower(), hashed)
         )
         conn.commit()
         return True
@@ -45,7 +45,7 @@ def create_session(username, cookies):
     try:
         c.execute(
             "INSERT INTO sessions (session_id, username, expiry) VALUES (?, ?, ?)",
-            (session_id, username, expiry),
+            (session_id, username.lower(), expiry),
         )
         conn.commit()
         cookies["session_id"] = session_id

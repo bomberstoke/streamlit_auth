@@ -16,9 +16,10 @@ def login_page(cookies):
 
         # Validate credentials and create session
         if submit:
-            role = verify_user(username, password)
+            username_lower = username.lower()
+            role = verify_user(username_lower, password)
             if role:
-                create_session(username, cookies)
+                create_session(username_lower, cookies)
                 st.toast("Login successful!", icon="✅")
                 # Add a small delay to ensure cookies are saved
                 time.sleep(0.5)

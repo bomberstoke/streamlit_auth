@@ -12,7 +12,7 @@ def assign_role(username, role):
     c = conn.cursor()
     c.execute(
         "INSERT OR IGNORE INTO user_roles (username, role) VALUES (?, ?)",
-        (username, role),
+        (username.lower(), role),
     )
     conn.commit()
     conn.close()
@@ -32,9 +32,9 @@ def register_page(cookies):
         if submit:
             if password != confirm_password:
                 st.toast("Passwords do not match", icon="⚠️")
-            elif register_user(username, password, "user"):
-                assign_role(username, "user")
-                create_session(username, cookies)
+            elif register_user(username.lower(), password, "user"):
+                assign_role(username.lower(), "user")
+                create_session(username.lower(), cookies)
                 st.toast("Registration successful! You are now logged in.", icon="✅")
                 time.sleep(1)
                 st.rerun()
